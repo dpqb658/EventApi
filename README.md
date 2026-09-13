@@ -41,8 +41,8 @@ dotnet run
 После запуска Swagger доступен по адресу:
 
 ```text
-http://localhost:5000/swagger
-https://localhost:5001/swagger
+http://localhost:5232/swagger
+https://localhost:7128/swagger
 ```
 
 ## API
