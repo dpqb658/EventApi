@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EventApi.Controllers;
 
 /// <summary>
-/// Контроллер для управления мероприятием.
+/// Контроллер для управления мероприятиями.
 /// </summary>
 /// <param name="eventService"></param>
 [ApiController]
@@ -16,16 +16,28 @@ public class EventsController(IEventService eventService) : ControllerBase
     private readonly IEventService _eventService = eventService;
 
     /// <summary>
-    /// Метод получает список всех мероприятий.
+    /// Метод получает список мероприятий.
     /// </summary>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<EventResponse>), StatusCodes.Status200OK)]
-    public ActionResult<IEnumerable<EventResponse>> GetAll()
+    [ProducesResponseType(typeof(PaginatedResult<EventResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult<PaginatedResult<EventResponse>> GetAll([FromQuery] EventFilterParameters parameters)
     {
-        var events = _eventService.GetAll();
-        var response = events.Select(MapToResponse);
+        var events = _eventService.GetEventList(
+            parameters.Title,
+            parameters.From,
+            parameters.To,
+            parameters.Page,
+            parameters.PageSize);
 
-        return Ok(response);
+        return Ok(new PaginatedResult<EventResponse>
+        {
+            Items = events.Items.Select(MapToResponse).ToList().AsReadOnly(),
+            Page = events.Page,
+            PageSize = events.PageSize,
+            TotalCount = events.TotalCount,
+            TotalPages = events.TotalPages
+        });
     }
 
     /// <summary>
@@ -37,13 +49,6 @@ public class EventsController(IEventService eventService) : ControllerBase
     public ActionResult<EventResponse> GetById(Guid id)
     {
         var eventItem = _eventService.GetById(id);
-        if (eventItem == null)
-        {
-            return NotFound(new
-            {
-                message = $"Мероприятие с идентификатором «{id}» не найдено."
-            });
-        }
 
         return Ok(MapToResponse(eventItem));
     }
@@ -67,7 +72,8 @@ public class EventsController(IEventService eventService) : ControllerBase
         return CreatedAtAction(
             nameof(GetById),
             new { id = eventItem.Id },
-            response);
+            response
+        );
     }
 
     /// <summary>
@@ -86,14 +92,6 @@ public class EventsController(IEventService eventService) : ControllerBase
             request.StartAt!.Value,
             request.EndAt!.Value);
 
-        if (eventItem == null)
-        {
-            return NotFound(new
-            {
-                message = $"Мероприятие с идентификатором «{id}» не найдено."
-            });
-        }
-
         return Ok(MapToResponse(eventItem));
     }
 
@@ -105,15 +103,7 @@ public class EventsController(IEventService eventService) : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult Delete(Guid id)
     {
-        var deleted = _eventService.Delete(id);
-        if (!deleted)
-        {
-            return NotFound(new
-            {
-                message = $"Мероприятие с идентификатором «{id}» не найдено."
-            });
-        }
-
+        _eventService.Delete(id);
         return NoContent();
     }
 
@@ -122,15 +112,12 @@ public class EventsController(IEventService eventService) : ControllerBase
     /// </summary>
     /// <param name="eventItem"></param>
     /// <returns></returns>
-    private static EventResponse MapToResponse(Event eventItem)
+    private static EventResponse MapToResponse(Event eventItem) => new()
     {
-        return new EventResponse
-        {
-            Id = eventItem.Id,
-            Title = eventItem.Title,
-            Description = eventItem.Description,
-            StartAt = eventItem.StartAt,
-            EndAt = eventItem.EndAt
-        };
-    }
+        Id = eventItem.Id,
+        Title = eventItem.Title,
+        Description = eventItem.Description,
+        StartAt = eventItem.StartAt,
+        EndAt = eventItem.EndAt
+    };
 }
