@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 
-namespace MiddlewareDemo
+namespace EventApi.Middleware
 {
     /// <summary>
     /// Класс для измерения времени обработки HTTP-запроса.

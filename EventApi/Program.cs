@@ -1,10 +1,12 @@
+using EventApi.Extensions;
+using EventApi.Middleware;
 using EventApi.Services;
-using MiddlewareDemo;
 using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddValidationErrorHandling();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -13,7 +15,7 @@ builder.Services.AddSwaggerGen(options =>
     // Путь к XML-файлу с документацией
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    options.IncludeXmlComments(xmlPath);
+    if (File.Exists(xmlPath)) options.IncludeXmlComments(xmlPath);
 });
 
 // Dependency Injection
@@ -28,8 +30,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
 app.UseMiddleware<RequestTimingMiddleware>();
+app.UseHttpsRedirection();
 app.MapControllers();
 
 app.Run();

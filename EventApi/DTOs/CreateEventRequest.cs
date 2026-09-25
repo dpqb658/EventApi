@@ -1,3 +1,4 @@
+using EventApi.Constants;
 using System.ComponentModel.DataAnnotations;
 
 namespace EventApi.DTOs;
@@ -10,8 +11,8 @@ public class CreateEventRequest : IValidatableObject
     /// <summary>
     /// Заголовок
     /// </summary>
-    [Required(ErrorMessage = "Параметр Title обязателен для заполнения.")]
-    [StringLength(250, ErrorMessage = "Параметр Title не должен превышать 250 символов.")]
+    [Required(ErrorMessage = ValidationMessages.TitleRequired)]
+    [StringLength(250, ErrorMessage = ValidationMessages.TitleTooLong)]
     public string? Title { get; set; }
 
     /// <summary>
@@ -22,13 +23,13 @@ public class CreateEventRequest : IValidatableObject
     /// <summary>
     /// Дата начала
     /// </summary>
-    [Required(ErrorMessage = "Параметр StartAt обязателен для заполнения.")]
+    [Required(ErrorMessage = ValidationMessages.StartAtRequired)]
     public DateTime? StartAt { get; set; }
 
     /// <summary>
     /// Дата завершения
     /// </summary>
-    [Required(ErrorMessage = "Параметр EndAt обязателен для заполнения.")]
+    [Required(ErrorMessage = ValidationMessages.EndAtRequired)]
     public DateTime? EndAt { get; set; }
 
     /// <summary>
@@ -41,8 +42,8 @@ public class CreateEventRequest : IValidatableObject
         if (StartAt.HasValue && EndAt.HasValue && EndAt.Value <= StartAt.Value)
         {
             yield return new ValidationResult(
-                "Параметр EndAt должен быть позднее, чем StartAt.",
-                [nameof(EndAt)]);
+                ValidationMessages.EndAtMustBeAfterStartAt, [nameof(EndAt)]
+            );
         }
     }
 }
