@@ -33,10 +33,10 @@ public static class ValidationMessages
     /// <summary>
     /// Сообщение о некорректном номере страницы.
     /// </summary>
-    public const string PageMin = "Параметр page должен быть больше или равен 1.";
+    public const string PageMin = "Параметр Page должен быть больше или равен 1.";
 
     /// <summary>
-    /// Сообщение о некорректном размере страницы.
+    /// Сообщение о некорректном количестве элементов на странице.
     /// </summary>
-    public const string PageSizeMin = "Параметр pageSize должен быть больше или равен 1.";
+    public const string PageSizeMin = "Параметр PageSize должен быть в пределах от 1 до 100 включительно.";
 }
