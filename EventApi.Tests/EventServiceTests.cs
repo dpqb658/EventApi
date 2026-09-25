@@ -275,10 +275,10 @@ public class EventServiceTests
     }
 
     /// <summary>
-    /// Проверяет, что количество элементов на странице не может быть 0.
+    /// Проверяет, что количество элементов на странице не может быть меньше 1.
     /// </summary>
     [Fact]
-    public void Validate_ShouldReturnError_WhenPageSizeIsInvalid()
+    public void Validate_ShouldReturnError_WhenPageSizeIsTooSmall()
     {
         var dto = new EventFilterParameters { PageSize = 0 };
 
@@ -288,7 +288,25 @@ public class EventServiceTests
         );
         var result = results.Single();
 
-        Assert.Equal(ValidationMessages.PageSizeMin, result.ErrorMessage);
+        Assert.Equal(ValidationMessages.PageSizeRange, result.ErrorMessage);
+        Assert.Contains(nameof(EventFilterParameters.PageSize), result.MemberNames);
+    }
+
+    /// <summary>
+    /// Проверяет, что количество элементов на странице не может быть больше 100.
+    /// </summary>
+    [Fact]
+    public void Validate_ShouldReturnError_WhenPageSizeIsTooLarge()
+    {
+        var dto = new EventFilterParameters { PageSize = 101 };
+
+        var results = new List<ValidationResult>();
+        Validator.TryValidateObject(
+            dto, new ValidationContext(dto), results, validateAllProperties: true
+        );
+        var result = results.Single();
+
+        Assert.Equal(ValidationMessages.PageSizeRange, result.ErrorMessage);
         Assert.Contains(nameof(EventFilterParameters.PageSize), result.MemberNames);
     }
 

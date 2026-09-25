@@ -38,5 +38,5 @@ public static class ValidationMessages
     /// <summary>
     /// Сообщение о некорректном количестве элементов на странице.
     /// </summary>
-    public const string PageSizeMin = "Параметр PageSize должен быть в пределах от 1 до 100 включительно.";
+    public const string PageSizeRange = "Параметр PageSize должен быть в пределах от 1 до 100 включительно.";
 }

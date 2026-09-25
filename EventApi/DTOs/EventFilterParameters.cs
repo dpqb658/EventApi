@@ -32,6 +32,6 @@ public class EventFilterParameters
     /// <summary>
     /// Количество элементов на странице. По умолчанию 10 максимум 100
     /// </summary>
-    [Range(1, 100, ErrorMessage = ValidationMessages.PageSizeMin)]
+    [Range(1, 100, ErrorMessage = ValidationMessages.PageSizeRange)]
     public int PageSize { get; set; } = 10;
 }
