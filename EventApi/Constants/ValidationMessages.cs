@@ -39,4 +39,9 @@ public static class ValidationMessages
     /// Сообщение о некорректном количестве элементов на странице.
     /// </summary>
     public const string PageSizeRange = "Параметр PageSize должен быть в пределах от 1 до 100 включительно.";
+
+    /// <summary>
+    /// Сообщение о некорректном значении.
+    /// </summary>
+    public const string InvalidValue = "Некорректное значение.";
 }

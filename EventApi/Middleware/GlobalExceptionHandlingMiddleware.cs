@@ -1,3 +1,4 @@
+using EventApi.Constants;
 using EventApi.Exceptions;
 using EventApi.Models;
 using System.ComponentModel.DataAnnotations;
@@ -65,7 +66,9 @@ public class GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<Glo
         var error = new ErrorResponse
         {
             StatusCode = statusCode,
-            ErrorType = ex.GetType().Name,
+            ErrorType = statusCode >= StatusCodes.Status500InternalServerError
+                ? ErrorTypes.InternalServerError
+                : ex.GetType().Name,
             Message = message
         };
 

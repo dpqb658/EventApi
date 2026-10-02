@@ -1,3 +1,4 @@
+using EventApi.Constants;
 using EventApi.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,13 +22,13 @@ public static class ServiceCollectionExtensions
                 var messages = context.ModelState.Values
                     .SelectMany(x => x.Errors)
                     .Select(x => string.IsNullOrWhiteSpace(x.ErrorMessage)
-                        ? "Некорректное значение."
+                        ? ValidationMessages.InvalidValue
                         : x.ErrorMessage);
 
                 var error = new ErrorResponse
                 {
                     StatusCode = StatusCodes.Status400BadRequest,
-                    ErrorType = "ValidationError",
+                    ErrorType = ErrorTypes.ValidationError,
                     Message = string.Join(" ", messages)
                 };
 
