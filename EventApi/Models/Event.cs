@@ -23,7 +23,6 @@ public class Event
     /// <summary>
     /// Дата начала
     /// </summary>
-
     public DateTime StartAt { get; set; }
 
     /// <summary>
