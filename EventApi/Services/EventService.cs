@@ -2,6 +2,7 @@ using EventApi.Constants;
 using EventApi.DTOs;
 using EventApi.Exceptions;
 using EventApi.Models;
+using System.ComponentModel.DataAnnotations;
 
 namespace EventApi.Services;
 
@@ -14,25 +15,7 @@ public class EventService : IEventService
 
     private readonly Lock _lock = new();
 
-    /// <summary>
-    /// Метод получает список мероприятий.
-    /// </summary>
-    /// <returns></returns>
-    public IReadOnlyCollection<Event> GetAll()
-    {
-        lock (_lock)
-        {
-            return _events
-                .ToList()
-                .AsReadOnly();
-        }
-    }
-
-    /// <summary>
-    /// Метод получает мероприятие по ID.
-    /// </summary>
-    /// <param name="id"></param>
-    /// <returns></returns>
+    /// <inheritdoc/>
     public Event GetById(Guid id)
     {
         lock (_lock)
@@ -45,19 +28,13 @@ public class EventService : IEventService
         }
     }
 
-    /// <summary>
-    /// Метод создаёт новое мероприятие.
-    /// </summary>
-    /// <param name="title">Заголовок</param>
-    /// <param name="description">Описание</param>
-    /// <param name="startAt">Дата начала</param>
-    /// <param name="endAt">Дата завершения</param>
-    /// <returns></returns>
+    /// <inheritdoc/>
     public Event Create(string title, string? description, DateTime startAt, DateTime endAt)
     {
+        ValidateDates(startAt, endAt);
+
         var eventItem = new Event
         {
-            Id = Guid.NewGuid(),
             Title = title,
             Description = description,
             StartAt = startAt,
@@ -72,17 +49,11 @@ public class EventService : IEventService
         return eventItem;
     }
 
-    /// <summary>
-    /// Метод обновляет мероприятие.
-    /// </summary>
-    /// <param name="id">Уникальный идентификатор</param>
-    /// <param name="title">Заголовок</param>
-    /// <param name="description">Описание</param>
-    /// <param name="startAt">Дата начала</param>
-    /// <param name="endAt">Дата завершения</param>
-    /// <returns></returns>
+    /// <inheritdoc/>
     public Event Update(Guid id, string title, string? description, DateTime startAt, DateTime endAt)
     {
+        ValidateDates(startAt, endAt);
+
         lock (_lock)
         {
             var eventItem = _events.FirstOrDefault(x => x.Id == id)
@@ -96,11 +67,7 @@ public class EventService : IEventService
         }
     }
 
-    /// <summary>
-    /// Метод удаляет мероприятие.
-    /// </summary>
-    /// <param name="id">Уникальный идентификатор</param>
-    /// <returns></returns>
+    /// <inheritdoc/>
     public void Delete(Guid id)
     {
         lock (_lock)
@@ -111,17 +78,11 @@ public class EventService : IEventService
         }
     }
 
-    /// <summary>
-    /// Метод получает список мероприятий по фильтру.
-    /// </summary>
-    /// <param name="title">Заголовок</param>
-    /// <param name="from">Дата начала</param>
-    /// <param name="to">Дата завершения</param>
-    /// <param name="page">Номер страницы</param>
-    /// <param name="pageSize">Количество элементов на странице</param>
-    /// <returns></returns>
+    /// <inheritdoc/>
     public PaginatedResult<Event> GetEventList(string? title, DateTime? from, DateTime? to, int page = 1, int pageSize = 10)
     {
+        ValidatePage(page, pageSize);
+
         lock (_lock)
         {
             IEnumerable<Event> query = _events;
@@ -160,6 +121,34 @@ public class EventService : IEventService
                 TotalCount = totalCount,
                 TotalPages = totalPages
             };
+        }
+    }
+
+    /// <summary>
+    /// Валидация даты завершения.
+    /// </summary>
+    /// <param name="startAt">Дата и время начала.</param>
+    /// <param name="endAt">Дата и время завершения.</param>
+    /// <exception cref="ValidationException"></exception>
+    private static void ValidateDates(DateTime startAt, DateTime endAt)
+    {
+        if (endAt <= startAt)
+        {
+            throw new ValidationException(ValidationMessages.EndAtMustBeAfterStartAt);
+        }
+    }
+
+    /// <summary>
+    /// Валидация номера страницы.
+    /// </summary>
+    /// <param name="page">Номер страницы.</param>
+    /// <param name="pageSize">Количество элементов на странице.</param>
+    /// <exception cref="ValidationException"></exception>
+    private static void ValidatePage(int page, int pageSize)
+    {
+        if (page > int.MaxValue / pageSize)
+        {
+            throw new ValidationException(ValidationMessages.PageMax);
         }
     }
 }

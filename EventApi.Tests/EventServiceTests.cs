@@ -9,7 +9,7 @@ namespace EventApi.Tests;
 
 public class EventServiceTests
 {
-    private static readonly DateTime BaseDate = DateTime.Now;
+    private static readonly DateTime BaseDate = DateTime.UtcNow;
 
     private static EventService CreateService() => new();
 
@@ -35,17 +35,28 @@ public class EventServiceTests
     }
 
     /// <summary>
-    /// Проверяет получение всех мероприятий.
+    /// Проверяет получение всех мероприятий без фильтров.
     /// </summary>
     [Fact]
-    public void GetAll_ShouldReturnAllEvents()
+    public void GetEventList_ShouldReturnAllEvents_WhenNoFiltersAreSpecified()
     {
         var service = CreateService();
-        service.Create("Заголовок 1", null, BaseDate, BaseDate.AddDays(1));
-        service.Create("Заголовок 2", null, BaseDate.AddDays(2), BaseDate.AddDays(3));
-        var result = service.GetAll();
+        service.Create(
+            "Заголовок 1",
+            null,
+            BaseDate,
+            BaseDate.AddDays(1)
+        );
+        service.Create(
+            "Заголовок 2",
+            null,
+            BaseDate.AddDays(2),
+            BaseDate.AddDays(3)
+        );
+        var result = service.GetEventList(null, null, null);
 
-        Assert.Equal(2, result.Count);
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(2, result.Items.Count);
     }
 
     /// <summary>
@@ -114,13 +125,66 @@ public class EventServiceTests
     {
         var service = CreateService();
 
-        Assert.Throws<NotFoundException>(() => service.Update(
-            Guid.NewGuid(), "Заголовок", null, BaseDate, BaseDate.AddHours(1)
-        ));
+        Assert.Throws<NotFoundException>(() =>
+            service.Update(
+                Guid.NewGuid(),
+                "Заголовок",
+                null,
+                BaseDate,
+                BaseDate.AddHours(1)
+            )
+        );
     }
 
     /// <summary>
-    /// Проверяет удаление мероприятия.
+    /// Проверяет, что есть ошибка при создании мероприятия с некорректными датами.
+    /// </summary>
+    [Fact]
+    public void Create_ShouldThrowValidationException_WhenDatesAreInvalid()
+    {
+        var service = CreateService();
+
+        var exception = Assert.Throws<ValidationException>(() =>
+            service.Create(
+                "Заголовок",
+                null,
+                BaseDate.AddHours(2),
+                BaseDate
+            )
+        );
+
+        Assert.Equal(ValidationMessages.EndAtMustBeAfterStartAt, exception.Message);
+    }
+
+    /// <summary>
+    /// Проверяет, что есть ошибка при обновлении мероприятия с некорректными датами.
+    /// </summary>
+    [Fact]
+    public void Update_ShouldThrowValidationException_WhenDatesAreInvalid()
+    {
+        var service = CreateService();
+        var created = service.Create(
+            "Заголовок",
+            null,
+            BaseDate,
+            BaseDate.AddHours(1)
+        );
+
+        var exception = Assert.Throws<ValidationException>(() =>
+            service.Update(
+                created.Id,
+                "Заголовок",
+                null,
+                BaseDate.AddHours(2),
+                BaseDate
+            )
+        );
+
+        Assert.Equal(ValidationMessages.EndAtMustBeAfterStartAt, exception.Message);
+    }
+
+    /// <summary>
+    /// Проверяет удаление существующего мероприятия.
     /// </summary>
     [Fact]
     public void Delete_ShouldRemoveExistingEvent()
@@ -132,10 +196,11 @@ public class EventServiceTests
             BaseDate,
             BaseDate.AddHours(1)
         );
+
         service.Delete(created.Id);
 
         Assert.Throws<NotFoundException>(() => service.GetById(created.Id));
-        Assert.Empty(service.GetAll());
+        Assert.Empty(service.GetEventList(null, null, null).Items);
     }
 
     /// <summary>
@@ -150,124 +215,172 @@ public class EventServiceTests
     }
 
     /// <summary>
-    /// Проверяет, что заголовок заполен.
+    /// Проверяет, что есть ошибка валидации при пустом заголовке.
     /// </summary>
-    [Fact]
-    public void Validate_ShouldReturnError_WhenTitleIsEmpty()
+    /// <param name="isCreate">Признак создания или обновления записи</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Validate_ShouldReturnError_WhenTitleIsEmpty(bool isCreate)
     {
-        var dto = new CreateEventRequest
-        {
-            Title = null,
-            StartAt = BaseDate,
-            EndAt = BaseDate.AddHours(1),
-        };
+        EventRequestBase dto = isCreate
+            ? new CreateEventRequest()
+            : new UpdateEventRequest();
+
+        dto.Title = null;
+        dto.StartAt = BaseDate;
+        dto.EndAt = BaseDate.AddHours(1);
 
         var results = new List<ValidationResult>();
+
         Validator.TryValidateObject(
-            dto, new ValidationContext(dto), results, validateAllProperties: true
+            dto,
+            new ValidationContext(dto),
+            results,
+            validateAllProperties: true
         );
+
         var result = results.Single();
+
         Assert.Equal(ValidationMessages.TitleRequired, result.ErrorMessage);
-        Assert.Contains(nameof(CreateEventRequest.Title), result.MemberNames);
+        Assert.Contains(nameof(EventRequestBase.Title), result.MemberNames);
     }
 
     /// <summary>
-    /// Проверяет, что заголовок не превышать 250 символов.
+    /// Проверяет, что есть ошибка валидации при длине заголовка больше 250 символов.
     /// </summary>
-    [Fact]
-    public void Validate_ShouldReturnError_WhenTitleIsTooLong()
+    /// <param name="isCreate">Признак создания или обновления записи</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Validate_ShouldReturnError_WhenTitleIsTooLong(bool isCreate)
     {
-        var dto = new CreateEventRequest
-        {
-            Title = new string('a', 251),
-            StartAt = BaseDate,
-            EndAt = BaseDate.AddHours(1),
-        };
+        EventRequestBase dto = isCreate
+            ? new CreateEventRequest()
+            : new UpdateEventRequest();
+
+        dto.Title = new string('a', 251);
+        dto.StartAt = BaseDate;
+        dto.EndAt = BaseDate.AddHours(1);
 
         var results = new List<ValidationResult>();
+
         Validator.TryValidateObject(
-            dto, new ValidationContext(dto), results, validateAllProperties: true
+            dto,
+            new ValidationContext(dto),
+            results,
+            validateAllProperties: true
         );
+
         var result = results.Single();
 
         Assert.Equal(ValidationMessages.TitleTooLong, result.ErrorMessage);
-        Assert.Contains(nameof(CreateEventRequest.Title), result.MemberNames);
+        Assert.Contains(nameof(EventRequestBase.Title), result.MemberNames);
     }
 
     /// <summary>
-    /// Проверяет, что дата начала заполнена.
+    /// Проверяет, что есть ошибка валидации при пустой дате начала.
     /// </summary>
-    [Fact]
-    public void Validate_ShouldReturnError_WhenStartAtIsEmpty()
+    /// <param name="isCreate">Признак создания или обновления записи</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Validate_ShouldReturnError_WhenStartAtIsEmpty(bool isCreate)
     {
-        var dto = new CreateEventRequest
-        {
-            Title = "Заголовок",
-            EndAt = BaseDate
-        };
+        EventRequestBase dto = isCreate
+            ? new CreateEventRequest()
+            : new UpdateEventRequest();
+
+        dto.Title = "Заголовок";
+        dto.EndAt = BaseDate;
 
         var results = new List<ValidationResult>();
+
         Validator.TryValidateObject(
-            dto, new ValidationContext(dto), results, validateAllProperties: true
+            dto,
+            new ValidationContext(dto),
+            results,
+            validateAllProperties: true
         );
+
         var result = results.Single();
+
         Assert.Equal(ValidationMessages.StartAtRequired, result.ErrorMessage);
-        Assert.Contains(nameof(CreateEventRequest.StartAt), result.MemberNames);
+        Assert.Contains(nameof(EventRequestBase.StartAt), result.MemberNames);
     }
 
     /// <summary>
-    /// Проверяет, что дата завершения заполнена.
+    /// Проверяет, что есть ошибка валидации при пустой дате завершения.
     /// </summary>
-    [Fact]
-    public void Validate_ShouldReturnError_WhenEndAtIsEmpty()
+    /// <param name="isCreate">Признак создания или обновления записи</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Validate_ShouldReturnError_WhenEndAtIsEmpty(bool isCreate)
     {
-        var dto = new CreateEventRequest
-        {
-            Title = "Заголовок",
-            StartAt = BaseDate
-        };
+        EventRequestBase dto = isCreate
+            ? new CreateEventRequest()
+            : new UpdateEventRequest();
+
+        dto.Title = "Заголовок";
+        dto.StartAt = BaseDate;
 
         var results = new List<ValidationResult>();
+
         Validator.TryValidateObject(
-            dto, new ValidationContext(dto), results, validateAllProperties: true
+            dto,
+            new ValidationContext(dto),
+            results,
+            validateAllProperties: true
         );
+
         var result = results.Single();
+
         Assert.Equal(ValidationMessages.EndAtRequired, result.ErrorMessage);
-        Assert.Contains(nameof(CreateEventRequest.EndAt), result.MemberNames);
+        Assert.Contains(nameof(EventRequestBase.EndAt), result.MemberNames);
     }
 
     /// <summary>
-    /// Проверяет, что дата завершения должна быть позднее даты начала.
+    /// Проверяет, что есть ошибка валидации при создании или обновлении, если дата начала позднее даты завершения.
     /// </summary>
-    [Fact]
-    public void Validate_ShouldReturnError_WhenEndAtIsBeforeStartAt()
+    /// <param name="isCreate">Признак создания или обновления записи</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Validate_ShouldReturnError_WhenEndAtIsBeforeStartAt(bool isCreate)
     {
-        var dto = new CreateEventRequest
-        {
-            StartAt = BaseDate.AddHours(2),
-            EndAt = BaseDate
-        };
+        EventRequestBase dto = isCreate
+            ? new CreateEventRequest()
+            : new UpdateEventRequest();
+
+        dto.StartAt = BaseDate.AddHours(2);
+        dto.EndAt = BaseDate;
 
         var result = dto
             .Validate(new ValidationContext(dto))
             .Single();
 
         Assert.Equal(ValidationMessages.EndAtMustBeAfterStartAt, result.ErrorMessage);
-        Assert.Contains(nameof(CreateEventRequest.EndAt), result.MemberNames);
+        Assert.Contains(nameof(EventRequestBase.EndAt), result.MemberNames);
     }
 
     /// <summary>
-    /// Проверяет, что номер страницы не может быть 0.
+    /// Проверяет, что есть ошибка валидации, если номер страницы меньше 1.
     /// </summary>
     [Fact]
-    public void Validate_ShouldReturnError_WhenPageIsInvalid()
+    public void Validate_ShouldReturnError_WhenPageIsTooSmall()
     {
         var dto = new EventFilterParameters { Page = 0 };
 
         var results = new List<ValidationResult>();
+
         Validator.TryValidateObject(
-            dto, new ValidationContext(dto), results, validateAllProperties: true
+            dto,
+            new ValidationContext(dto),
+            results,
+            validateAllProperties: true
         );
+
         var result = results.Single();
 
         Assert.Equal(ValidationMessages.PageMin, result.ErrorMessage);
@@ -275,7 +388,27 @@ public class EventServiceTests
     }
 
     /// <summary>
-    /// Проверяет, что количество элементов на странице не может быть меньше 1.
+    /// Проверяет, что есть ошибка валидации, если номер страницы превышает максимальное значение.
+    /// </summary>
+    [Fact]
+    public void Validate_ShouldReturnError_WhenPageIsTooLarge()
+    {
+        var service = CreateService();
+        var exception = Assert.Throws<ValidationException>(() =>
+            service.GetEventList(
+                null,
+                null,
+                null,
+                int.MaxValue,
+                int.MaxValue
+            )
+        );
+
+        Assert.Equal(ValidationMessages.PageMax, exception.Message);
+    }
+
+    /// <summary>
+    /// Проверяет, что есть ошибка валидации, если количество элементов на странице меньше 1.
     /// </summary>
     [Fact]
     public void Validate_ShouldReturnError_WhenPageSizeIsTooSmall()
@@ -283,9 +416,14 @@ public class EventServiceTests
         var dto = new EventFilterParameters { PageSize = 0 };
 
         var results = new List<ValidationResult>();
+
         Validator.TryValidateObject(
-            dto, new ValidationContext(dto), results, validateAllProperties: true
+            dto,
+            new ValidationContext(dto),
+            results,
+            validateAllProperties: true
         );
+
         var result = results.Single();
 
         Assert.Equal(ValidationMessages.PageSizeRange, result.ErrorMessage);
@@ -293,7 +431,7 @@ public class EventServiceTests
     }
 
     /// <summary>
-    /// Проверяет, что количество элементов на странице не может быть больше 100.
+    /// Проверяет, что есть ошибка валидации, если количество элементов на странице больше 100.
     /// </summary>
     [Fact]
     public void Validate_ShouldReturnError_WhenPageSizeIsTooLarge()
@@ -301,9 +439,14 @@ public class EventServiceTests
         var dto = new EventFilterParameters { PageSize = 101 };
 
         var results = new List<ValidationResult>();
+
         Validator.TryValidateObject(
-            dto, new ValidationContext(dto), results, validateAllProperties: true
+            dto,
+            new ValidationContext(dto),
+            results,
+            validateAllProperties: true
         );
+
         var result = results.Single();
 
         Assert.Equal(ValidationMessages.PageSizeRange, result.ErrorMessage);
@@ -311,16 +454,35 @@ public class EventServiceTests
     }
 
     /// <summary>
-    /// Проверяет фильтрацию по заголовку.
+    /// Проверяет фильтрацию по заголовку без учета регистра.
     /// </summary>
     [Fact]
     public void GetEventList_ShouldFilterByTitleCaseInsensitively()
     {
         var service = CreateService();
-        service.Create("Тестовый заголовок 1", null, BaseDate, BaseDate.AddDays(1));
-        service.Create("Тестовый заголовок 2", null, BaseDate, BaseDate.AddDays(2));
-        service.Create("Заголовок 3", null, BaseDate, BaseDate.AddDays(3));
-        var result = service.GetEventList("Тестовый заголовок", null, null);
+        service.Create(
+            "Тестовый заголовок 1",
+            null,
+            BaseDate,
+            BaseDate.AddDays(1)
+        );
+        service.Create(
+            "Тестовый заголовок 2",
+            null,
+            BaseDate,
+            BaseDate.AddDays(2)
+        );
+        service.Create(
+            "Заголовок 3",
+            null,
+            BaseDate,
+            BaseDate.AddDays(3)
+        );
+        var result = service.GetEventList(
+            "ТЕСТОВЫЙ ЗАГОЛОВОК",
+            null,
+            null
+        );
 
         Assert.Equal(2, result.TotalCount);
         Assert.Equal(2, result.Items.Count);
@@ -333,10 +495,29 @@ public class EventServiceTests
     public void GetEventList_ShouldFilterByFromDate()
     {
         var service = CreateService();
-        service.Create("Тестовый заголовок 1", null, BaseDate, BaseDate.AddDays(1));
-        service.Create("Тестовый заголовок 2", null, BaseDate.AddDays(1), BaseDate.AddDays(2));
-        service.Create("Заголовок 3", null, BaseDate.AddDays(2), BaseDate.AddDays(3));
-        var result = service.GetEventList(null, BaseDate.AddDays(1), null);
+        service.Create(
+            "Тестовый заголовок 1",
+            null,
+            BaseDate,
+            BaseDate.AddDays(1)
+        );
+        service.Create(
+             "Тестовый заголовок 2",
+             null,
+             BaseDate.AddDays(1),
+             BaseDate.AddDays(2)
+        );
+        service.Create(
+            "Заголовок 3",
+            null,
+            BaseDate.AddDays(2),
+            BaseDate.AddDays(3)
+        );
+        var result = service.GetEventList(
+            null,
+            BaseDate.AddDays(1),
+            null
+        );
 
         Assert.Equal(2, result.TotalCount);
         Assert.DoesNotContain(result.Items, x => x.Title == "Тестовый заголовок 1");
@@ -349,17 +530,36 @@ public class EventServiceTests
     public void GetEventList_ShouldFilterByToDate()
     {
         var service = CreateService();
-        service.Create("Тестовый заголовок 1", null, BaseDate, BaseDate.AddDays(1));
-        service.Create("Тестовый заголовок 2", null, BaseDate.AddDays(1), BaseDate.AddDays(2));
-        service.Create("Заголовок 3", null, BaseDate.AddDays(2), BaseDate.AddDays(3));
-        var result = service.GetEventList(null, null, BaseDate.AddDays(2));
+        service.Create(
+            "Тестовый заголовок 1",
+            null,
+            BaseDate,
+            BaseDate.AddDays(1)
+        );
+        service.Create(
+            "Тестовый заголовок 2",
+            null,
+            BaseDate.AddDays(1),
+            BaseDate.AddDays(2)
+        );
+        service.Create(
+            "Заголовок 3",
+            null,
+            BaseDate.AddDays(2),
+            BaseDate.AddDays(3)
+        );
+        var result = service.GetEventList(
+            null,
+            null,
+            BaseDate.AddDays(2)
+        );
 
         Assert.Equal(2, result.TotalCount);
         Assert.DoesNotContain(result.Items, x => x.Title == "Заголовок 3");
     }
 
     /// <summary>
-    /// Проверяет, что выборка по страницам работает.
+    /// Проверяет пагинацию результатов.
     /// </summary>
     [Fact]
     public void GetEventList_ShouldPaginate()
@@ -376,7 +576,13 @@ public class EventServiceTests
             );
         }
 
-        var result = service.GetEventList(null, null, null, page: 2, pageSize: 10);
+        var result = service.GetEventList(
+            null,
+            null,
+            null,
+            page: 2,
+            pageSize: 10
+        );
 
         Assert.Equal(25, result.TotalCount);
         Assert.Equal(2, result.Page);
@@ -387,26 +593,52 @@ public class EventServiceTests
     }
 
     /// <summary>
-    /// Проверяет использование всех фильтров.
+    /// Проверяет совместное применение всех фильтров.
     /// </summary>
     [Fact]
     public void GetEventList_ShouldCombineAllFilters()
     {
         var service = CreateService();
 
-        service.Create("Тестовый заголовок 1", null, BaseDate.AddDays(1), BaseDate.AddDays(1));
-        service.Create("Тестовый заголовок 2", null, BaseDate.AddDays(2), BaseDate.AddDays(2).AddHours(1));
-        service.Create("Тестовый заголовок 3", null, BaseDate.AddDays(3), BaseDate.AddDays(3).AddHours(2));
-        service.Create("Тестовый заголовок 4", null, BaseDate.AddDays(-2), BaseDate.AddDays(-2).AddHours(1));
-        service.Create("Заголовок 4", null, BaseDate.AddDays(-1), BaseDate.AddDays(-1));
-
+        service.Create(
+            "Тестовый заголовок 1",
+            null,
+            BaseDate.AddDays(1),
+            BaseDate.AddDays(1).AddHours(1)
+        );
+        service.Create(
+            "Тестовый заголовок 2",
+            null,
+            BaseDate.AddDays(2),
+            BaseDate.AddDays(2).AddHours(2)
+        );
+        service.Create(
+            "Тестовый заголовок 3",
+            null,
+            BaseDate.AddDays(3),
+            BaseDate.AddDays(3).AddHours(3)
+        );
+        service.Create(
+            "Тестовый заголовок 4",
+            null,
+            BaseDate.AddDays(-2),
+            BaseDate.AddDays(-2).AddHours(2)
+        );
+        service.Create(
+            "Заголовок 4",
+            null,
+            BaseDate.AddDays(-1),
+            BaseDate.AddDays(-1).AddHours(1)
+        );
         var result = service.GetEventList(
-            "Тестовый заголовок", BaseDate, BaseDate.AddDays(2).AddHours(2), page: 1, pageSize: 10
+            "Тестовый заголовок",
+            BaseDate,
+            BaseDate.AddDays(2).AddHours(2),
+            page: 1,
+            pageSize: 10
         );
 
         Assert.Equal(2, result.TotalCount);
-        Assert.All(result.Items, x => Assert.Contains(
-            "Заголовок", x.Title, StringComparison.OrdinalIgnoreCase
-        ));
+        Assert.Equal(["Тестовый заголовок 1", "Тестовый заголовок 2"], result.Items.Select(x => x.Title));
     }
 }

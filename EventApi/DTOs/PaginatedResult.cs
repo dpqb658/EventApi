@@ -7,27 +7,27 @@ namespace EventApi.DTOs;
 public class PaginatedResult<T>
 {
     /// <summary>
-    /// Элементы текущей страницы
+    /// Элементы текущей страницы.
     /// </summary>
     public IReadOnlyCollection<T> Items { get; set; } = [];
 
     /// <summary>
-    /// Номер страницы
+    /// Номер страницы.
     /// </summary>
     public int Page { get; set; }
 
     /// <summary>
-    /// Количество элементов на странице
+    /// Количество элементов на странице.
     /// </summary>
     public int PageSize { get; set; }
 
     /// <summary>
-    /// Количество элементов
+    /// Количество элементов.
     /// </summary>
     public int TotalCount { get; set; }
 
     /// <summary>
-    /// Количество страниц
+    /// Количество страниц.
     /// </summary>
     public int TotalPages { get; set; }
 }

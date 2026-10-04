@@ -6,27 +6,27 @@ namespace EventApi.Models;
 public class Event
 {
     /// <summary>
-    /// Уникальный идентификатор
+    /// Уникальный идентификатор.
     /// </summary>
-    public Guid Id { get; set; }
+    public Guid Id { get; } = Guid.NewGuid();
 
     /// <summary>
-    /// Заголовок
+    /// Заголовок.
     /// </summary>
     public string Title { get; set; } = string.Empty;
 
     /// <summary>
-    /// Описание
+    /// Описание.
     /// </summary>
     public string? Description { get; set; }
 
     /// <summary>
-    /// Дата начала
+    /// Дата начала.
     /// </summary>
     public DateTime StartAt { get; set; }
 
     /// <summary>
-    /// Дата завершения
+    /// Дата завершения.
     /// </summary>
     public DateTime EndAt { get; set; }
 }

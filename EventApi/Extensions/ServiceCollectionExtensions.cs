@@ -1,6 +1,7 @@
 using EventApi.Constants;
 using EventApi.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace EventApi.Extensions;
 
@@ -25,11 +26,11 @@ public static class ServiceCollectionExtensions
                         ? ValidationMessages.InvalidValue
                         : x.ErrorMessage);
 
-                var error = new ErrorResponse
+                var error = new ProblemDetails
                 {
-                    StatusCode = StatusCodes.Status400BadRequest,
-                    ErrorType = ErrorTypes.ValidationError,
-                    Message = string.Join(" ", messages)
+                    Type = nameof(ValidationException),
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = string.Join(" ", messages)
                 };
 
                 return new BadRequestObjectResult(error);
