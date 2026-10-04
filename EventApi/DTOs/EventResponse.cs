@@ -6,27 +6,27 @@ namespace EventApi.DTOs;
 public class EventResponse
 {
     /// <summary>
-    /// Уникальный идентификатор
+    /// Уникальный идентификатор.
     /// </summary>
     public Guid Id { get; set; }
-    
+
     /// <summary>
-    /// Заголовок
+    /// Заголовок.
     /// </summary>
     public string Title { get; set; } = string.Empty;
-    
+
     /// <summary>
-    /// Описание
+    /// Описание.
     /// </summary>
     public string? Description { get; set; }
-    
+
     /// <summary>
-    /// Дата начала
+    /// Дата и время начала.
     /// </summary>
     public DateTime StartAt { get; set; }
-    
+
     /// <summary>
-    /// Дата завершения
+    /// Дата и время завершения.
     /// </summary>
     public DateTime EndAt { get; set; }
 }
