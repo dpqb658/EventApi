@@ -299,6 +299,7 @@ POST /bookings/cb1a45a0-d889-41cb-8115-8a98b74aec68
 
 ```json
 {
+  "type": "NotFoundException",
   "status": 404,
   "detail": "Мероприятие с идентификатором «...» не найдено."
 }
