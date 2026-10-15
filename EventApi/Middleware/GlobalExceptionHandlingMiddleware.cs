@@ -1,7 +1,8 @@
 using EventApi.Constants;
 using EventApi.Exceptions;
-using EventApi.Models;
+using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using System.Net;
 
 namespace EventApi.Middleware;
 
@@ -63,13 +64,13 @@ public class GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<Glo
         httpContext.Response.StatusCode = statusCode;
         httpContext.Response.ContentType = "application/json";
 
-        var error = new ErrorResponse
+        var error = new ProblemDetails
         {
-            StatusCode = statusCode,
-            ErrorType = statusCode >= StatusCodes.Status500InternalServerError
-                ? ErrorTypes.InternalServerError
+            Type = statusCode >= StatusCodes.Status500InternalServerError
+                ? HttpStatusCode.InternalServerError.ToString()
                 : ex.GetType().Name,
-            Message = message
+            Status = statusCode,
+            Detail = message
         };
 
         await httpContext.Response.WriteAsJsonAsync(error);
@@ -88,6 +89,6 @@ public class GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<Glo
         {
             ValidationException => ex.Message,
             NotFoundException => ex.Message,
-            _ => "Произошла непредвиденная ошибка."
+            _ => ErrorMessages.InternalServerError
         };
 }

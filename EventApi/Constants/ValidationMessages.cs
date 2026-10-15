@@ -31,9 +31,14 @@ public static class ValidationMessages
     public const string EndAtMustBeAfterStartAt = "Параметр EndAt должен быть позднее, чем StartAt.";
 
     /// <summary>
-    /// Сообщение о некорректном номере страницы.
+    /// Сообщение о минимально допустимом номере страницы.
     /// </summary>
     public const string PageMin = "Параметр Page должен быть больше или равен 1.";
+
+    /// <summary>
+    /// Сообщение о максимально допустимом номере страницы.
+    /// </summary>
+    public const string PageMax = "Параметр Page превышает максимальное значение.";
 
     /// <summary>
     /// Сообщение о некорректном количестве элементов на странице.

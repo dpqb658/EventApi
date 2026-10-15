@@ -1,33 +1,32 @@
 ﻿using System.Diagnostics;
 
-namespace EventApi.Middleware
+namespace EventApi.Middleware;
+
+/// <summary>
+/// Класс для измерения времени обработки HTTP-запроса.
+/// </summary>
+/// <param name="next">Ссылка на следующий middleware</param>
+public class RequestTimingMiddleware(RequestDelegate next)
 {
+    private readonly RequestDelegate _next = next;
+
     /// <summary>
-    /// Класс для измерения времени обработки HTTP-запроса.
+    /// Добавляет в Headers время обработки.
     /// </summary>
-    /// <param name="next">Ссылка на следующий middleware</param>
-    public class RequestTimingMiddleware(RequestDelegate next)
+    /// <param name="context"></param>
+    /// <returns></returns>
+    public async Task InvokeAsync(HttpContext context)
     {
-        private readonly RequestDelegate _next = next;
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
-        /// <summary>
-        /// Добавляет в Headers время обработки.
-        /// </summary>
-        /// <param name="context"></param>
-        /// <returns></returns>
-        public async Task InvokeAsync(HttpContext context)
+        context.Response.OnStarting(() =>
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
+            stopwatch.Stop();
+            var elapsed = stopwatch.ElapsedMilliseconds;
+            context.Response.Headers["X-Response-Time"] = $"{elapsed}ms";
+            return Task.CompletedTask;
+        });
 
-            context.Response.OnStarting(() =>
-            {
-                stopwatch.Stop();
-                var elapsed = stopwatch.ElapsedMilliseconds;
-                context.Response.Headers["X-Response-Time"] = $"{elapsed}ms";
-                return Task.CompletedTask;
-            });
-
-            await _next(context);
-        }
+        await _next(context);
     }
 }

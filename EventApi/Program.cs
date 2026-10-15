@@ -1,3 +1,4 @@
+using EventApi.Background;
 using EventApi.Extensions;
 using EventApi.Middleware;
 using EventApi.Services;
@@ -20,6 +21,8 @@ builder.Services.AddSwaggerGen(options =>
 
 // Dependency Injection
 builder.Services.AddSingleton<IEventService, EventService>();
+builder.Services.AddSingleton<IBookingService, BookingService>();
+builder.Services.AddHostedService<BookingProcessingService>();
 
 var app = builder.Build();
 

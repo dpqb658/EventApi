@@ -16,7 +16,7 @@ public class EventsController(IEventService eventService) : ControllerBase
     private readonly IEventService _eventService = eventService;
 
     /// <summary>
-    /// Метод получает список мероприятий.
+    /// Метод возвращает список мероприятий.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(PaginatedResult<EventResponse>), StatusCodes.Status200OK)]
@@ -41,7 +41,7 @@ public class EventsController(IEventService eventService) : ControllerBase
     }
 
     /// <summary>
-    /// Метод получает мероприятие по ID.
+    /// Метод возвращает мероприятие по ID.
     /// </summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
@@ -65,8 +65,8 @@ public class EventsController(IEventService eventService) : ControllerBase
             request.Title!,
             request.Description,
             request.StartAt!.Value,
-            request.EndAt!.Value);
-
+            request.EndAt!.Value
+        );
         var response = MapToResponse(eventItem);
 
         return CreatedAtAction(
@@ -90,8 +90,8 @@ public class EventsController(IEventService eventService) : ControllerBase
             request.Title!,
             request.Description,
             request.StartAt!.Value,
-            request.EndAt!.Value);
-
+            request.EndAt!.Value
+        );
         return Ok(MapToResponse(eventItem));
     }
 
@@ -110,7 +110,7 @@ public class EventsController(IEventService eventService) : ControllerBase
     /// <summary>
     /// Преобразует Event в EventResponse для ответа.
     /// </summary>
-    /// <param name="eventItem"></param>
+    /// <param name="eventItem">Мероприятие.</param>
     /// <returns></returns>
     private static EventResponse MapToResponse(Event eventItem) => new()
     {
