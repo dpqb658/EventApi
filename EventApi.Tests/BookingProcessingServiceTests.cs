@@ -1,5 +1,6 @@
 using EventApi.Background;
 using EventApi.Models;
+using EventApi.Repositories;
 using EventApi.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -14,19 +15,22 @@ public class BookingProcessingServiceTests
     [Fact]
     public async Task ProcessPendingBooking_ShouldConfirmBooking_AndSetProcessedAt()
     {
-        var eventService = new EventService();
+        var eventStore = new InMemoryEventStore();
+        var eventService = new EventService(eventStore);
         var bookingService = new BookingService(eventService);
         var eventItem = eventService.Create(
             "Заголовок",
             null,
             DateTime.UtcNow,
-            DateTime.UtcNow.AddHours(1)
+            DateTime.UtcNow.AddHours(1),
+            10
         );
         var booking = await bookingService.CreateBookingAsync(eventItem.Id);
 
         var service = new BookingProcessingService(
             NullLogger<BookingProcessingService>.Instance,
-            bookingService
+            bookingService,
+            eventStore
         );
 
         await service.StartAsync(CancellationToken.None);

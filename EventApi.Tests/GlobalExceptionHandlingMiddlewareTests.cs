@@ -1,7 +1,6 @@
 using EventApi.Constants;
 using EventApi.Exceptions;
 using EventApi.Middleware;
-using EventApi.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;

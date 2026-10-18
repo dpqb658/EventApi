@@ -1,16 +1,22 @@
 using EventApi.Constants;
 using EventApi.Models;
+using EventApi.Repositories;
 using EventApi.Services;
 
 namespace EventApi.Background;
 
 /// <summary>
-/// Сервис обрабатывающий очередь бронирований в фоне.
+/// Сервис, параллельно обрабатывающий очередь бронирований в фоне.
 /// </summary>
-public class BookingProcessingService(ILogger<BookingProcessingService> logger, IBookingService bookingService) : BackgroundService
+public class BookingProcessingService(ILogger<BookingProcessingService> logger, IBookingService bookingService, IEventStore eventStore) : BackgroundService
 {
+    private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan ProcessingDelay = TimeSpan.FromSeconds(2);
+
     private readonly ILogger<BookingProcessingService> _logger = logger;
     private readonly IBookingService _bookingService = bookingService;
+    private readonly IEventStore _eventStore = eventStore;
+    private readonly SemaphoreSlim _processingSemaphore = new(1, 1);
 
     /// <summary>
     /// Запускает сервис обработки очереди в фоне.
@@ -27,15 +33,18 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
                 var pendingBookings = _bookingService.GetPendingBookings();
                 var processedCount = 0;
 
-                foreach (var booking in pendingBookings)
+                var tasks = pendingBookings.Select(async booking =>
                 {
-                    if (await ProcessBookingAsync(booking, stoppingToken))
-                    {
-                        processedCount++;
-                    }
-                }
+                    await ProcessBookingAsync(booking, stoppingToken);
+                    Interlocked.Increment(ref processedCount);
+                });
 
-                _logger.LogInformation(InfoMessages.BookingsProcessed, processedCount);
+                await Task.WhenAll(tasks);
+
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation(InfoMessages.BookingsProcessed, processedCount);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -46,7 +55,14 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
                 _logger.LogError(ex, ErrorMessages.BookingProcessingServiceError);
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            try
+            {
+                await Task.Delay(PollingInterval, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
         }
 
         _logger.LogInformation(InfoMessages.BookingServiceStop);
@@ -56,26 +72,71 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
     /// Метод обрабатывает запись бронирования и меняет статус.
     /// </summary>
     /// <param name="booking">Запись бронирования.</param>
-    /// <param name="ct">Токен отмены.</param>
-    /// <returns></returns>
-    private async Task<bool> ProcessBookingAsync(Booking booking, CancellationToken ct)
+    /// <param name="stoppingToken">Токен отмены.</param>
+    private async Task ProcessBookingAsync(Booking booking, CancellationToken stoppingToken)
     {
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            await Task.Delay(ProcessingDelay, stoppingToken);
 
-            _bookingService.ChangeStatusBooking(booking, BookingStatus.Confirmed, ct);
-            _logger.LogInformation(InfoMessages.BookingConfirmed, booking.Id);
-            return true;
+            await _processingSemaphore.WaitAsync(stoppingToken);
+            try
+            {
+                var eventItem = _eventStore.GetById(booking.EventId);
+                if (eventItem is null)
+                {
+                    booking.Reject();
+                    _logger.LogWarning(InfoMessages.BookingReject, booking.Id);
+                    return;
+                }
+
+                booking.Confirm();
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation(InfoMessages.BookingConfirmed, booking.Id);
+                }
+            }
+            finally
+            {
+                _processingSemaphore.Release();
+            }
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, ErrorMessages.ProcessBookingError, booking.Id);
-            return false;
+
+            try
+            {
+                await _processingSemaphore.WaitAsync(CancellationToken.None);
+                try
+                {
+                    var eventItem = _eventStore.GetById(booking.EventId);
+                    eventItem?.ReleaseSeats();
+                    booking.Reject();
+                }
+                finally
+                {
+                    _processingSemaphore.Release();
+                }
+            }
+            catch (Exception rejectionError)
+            {
+                _logger.LogError(rejectionError, ErrorMessages.BookingRejectError, booking.Id);
+            }
         }
+    }
+
+    /// <summary>
+    /// Освобождает управляемые ресурсы, используемые сервисом.
+    /// </summary>
+    public override void Dispose()
+    {
+        _processingSemaphore.Dispose();
+        base.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

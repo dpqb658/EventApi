@@ -65,7 +65,8 @@ public class EventsController(IEventService eventService) : ControllerBase
             request.Title!,
             request.Description,
             request.StartAt!.Value,
-            request.EndAt!.Value
+            request.EndAt!.Value,
+            request.TotalSeats!.Value
         );
         var response = MapToResponse(eventItem);
 
@@ -81,8 +82,8 @@ public class EventsController(IEventService eventService) : ControllerBase
     /// </summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public ActionResult<EventResponse> Update(Guid id, [FromBody] UpdateEventRequest request)
     {
         var eventItem = _eventService.Update(
@@ -118,6 +119,8 @@ public class EventsController(IEventService eventService) : ControllerBase
         Title = eventItem.Title,
         Description = eventItem.Description,
         StartAt = eventItem.StartAt,
-        EndAt = eventItem.EndAt
+        EndAt = eventItem.EndAt,
+        TotalSeats = eventItem.TotalSeats,
+        AvailableSeats = eventItem.AvailableSeats
     };
 }

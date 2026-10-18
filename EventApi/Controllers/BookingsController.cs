@@ -20,6 +20,7 @@ public class BookingsController(IBookingService bookingService) : ControllerBase
     [HttpPost("events/{id:guid}/book")]
     [ProducesResponseType(typeof(BookingResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<BookingResponse>> Create(Guid id, CancellationToken ct)
     {
         var booking = await _bookingService.CreateBookingAsync(id, ct);

@@ -33,7 +33,7 @@ public static class ValidationMessages
     /// <summary>
     /// Сообщение о минимально допустимом номере страницы.
     /// </summary>
-    public const string PageMin = "Параметр Page должен быть больше или равен 1.";
+    public const string PageMin = "Параметр Page должен быть больше нуля.";
 
     /// <summary>
     /// Сообщение о максимально допустимом номере страницы.
@@ -49,4 +49,14 @@ public static class ValidationMessages
     /// Сообщение о некорректном значении.
     /// </summary>
     public const string InvalidValue = "Некорректное значение.";
+
+    /// <summary>
+    /// Сообщение об обязательности количества мест.
+    /// </summary>
+    public const string TotalSeatsRequired = "Параметр TotalSeats обязателен для заполнения.";
+
+    /// <summary>
+    /// Сообщение о минимальном допустимом количестве мест.
+    /// </summary>
+    public const string TotalSeatsMin = "Параметр TotalSeats должен быть больше нуля.";
 }

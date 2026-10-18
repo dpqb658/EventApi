@@ -30,4 +30,13 @@ public static class ErrorMessages
     /// </summary>
     public const string InternalServerError = "Произошла непредвиденная ошибка.";
 
+    /// <summary>
+    /// Сообщение об отсутствии свободных мест на мероприятии.
+    /// </summary>
+    public const string NoAvailableSeatsError = "No available seats for this event";
+
+    /// <summary>
+    /// Сообщение об ошибке при отклонении бронирования.
+    /// </summary>
+    public const string BookingRejectError = "Не удалось отклонить бронирование «{BookingId}».";
 }

@@ -21,7 +21,8 @@ public interface IEventService
     /// <param name="description">Описание.</param>
     /// <param name="startAt">Дата начала.</param>
     /// <param name="endAt">Дата завершения.</param>
-    Event Create(string title, string? description, DateTime startAt, DateTime endAt);
+    /// <param name="totalSeats">Общее количество мест.</param>
+    Event Create(string title, string? description, DateTime startAt, DateTime endAt, int totalSeats);
 
     /// <summary>
     /// Метод обновляет мероприятие.
