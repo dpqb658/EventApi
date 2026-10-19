@@ -12,24 +12,28 @@ public class BookingService(IEventService eventService, IBookingStore? bookingSt
 {
     private readonly IEventService _eventService = eventService;
     private readonly IBookingStore _bookingStore = bookingStore ?? new InMemoryBookingStore();
-    private readonly Lock _bookingLock = new();
 
     /// <inheritdoc/>
     public Task<Booking> CreateBookingAsync(Guid eventId, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
 
-        lock (_bookingLock)
+        var eventItem = _eventService.GetById(eventId);
+        if (!eventItem.TryReserveSeats())
         {
-            var eventItem = _eventService.GetById(eventId);
-            if (!eventItem.TryReserveSeats())
-            {
-                throw new NoAvailableSeatsException();
-            }
+            throw new NoAvailableSeatsException();
+        }
 
+        try
+        {
             var booking = new Booking { EventId = eventId };
             _bookingStore.Add(booking);
             return Task.FromResult(booking);
+        }
+        catch
+        {
+            eventItem.ReleaseSeats();
+            throw;
         }
     }
 
