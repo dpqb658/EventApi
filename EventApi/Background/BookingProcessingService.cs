@@ -16,7 +16,7 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
     private readonly ILogger<BookingProcessingService> _logger = logger;
     private readonly IBookingService _bookingService = bookingService;
     private readonly IEventStore _eventStore = eventStore;
-    private readonly SemaphoreSlim _processingSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _processingSemaphore = new(Math.Max(1, Environment.ProcessorCount / 2), Math.Max(1, Environment.ProcessorCount / 2));
 
     /// <summary>
     /// Запускает сервис обработки очереди в фоне.
@@ -111,17 +111,9 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
 
             try
             {
-                await _processingSemaphore.WaitAsync(CancellationToken.None);
-                try
-                {
-                    var eventItem = _eventStore.GetById(booking.EventId);
-                    eventItem?.ReleaseSeats();
-                    booking.Reject();
-                }
-                finally
-                {
-                    _processingSemaphore.Release();
-                }
+                var eventItem = _eventStore.GetById(booking.EventId);
+                eventItem?.ReleaseSeats();
+                booking.Reject();
             }
             catch (Exception rejectionError)
             {

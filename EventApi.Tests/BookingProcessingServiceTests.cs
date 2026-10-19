@@ -37,8 +37,10 @@ public class BookingProcessingServiceTests
 
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(3));
-            var processed = await bookingService.GetBookingByIdAsync(booking.Id);
+            var processed = await PollUntilAsync(
+                () => bookingService.GetBookingByIdAsync(booking.Id),
+                b => b.Status != BookingStatus.Pending, TimeSpan.FromSeconds(10)
+            );
 
             Assert.NotNull(processed);
             Assert.Equal(BookingStatus.Confirmed, processed.Status);
@@ -48,5 +50,33 @@ public class BookingProcessingServiceTests
         {
             await service.StopAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Периодически вызывает "getValue", пока не выполнится
+    /// "condition", либо не истечёт "timeout".
+    /// </summary>
+    /// <typeparam name="T">Тип возвращаемого значения.</typeparam>
+    /// <param name="getValue">Асинхронная функция получения значения.</param>
+    /// <param name="condition">Условие, при котором ожидание считается успешным.</param>
+    /// <param name="timeout">Максимальное время ожидания.</param>
+    /// <returns>Значение, удовлетворяющее условию.</returns>
+    public static async Task<T> PollUntilAsync<T>(Func<Task<T>> getValue, Func<T, bool> condition, TimeSpan timeout)
+    {
+        var start = DateTime.UtcNow;
+        var interval = TimeSpan.FromMilliseconds(200);
+
+        while (DateTime.UtcNow - start < timeout)
+        {
+            var value = await getValue();
+            if (condition(value))
+            {
+                return value;
+            }
+
+            await Task.Delay(interval);
+        }
+
+        throw new TimeoutException();
     }
 }
