@@ -29,4 +29,14 @@ public class EventResponse
     /// Дата и время завершения.
     /// </summary>
     public DateTime EndAt { get; set; }
+
+    /// <summary>
+    /// Общее количество мест.
+    /// </summary>
+    public int TotalSeats { get; set; }
+
+    /// <summary>
+    /// Количество свободных мест.
+    /// </summary>
+    public int AvailableSeats { get; set; }
 }

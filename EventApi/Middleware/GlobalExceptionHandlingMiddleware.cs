@@ -81,6 +81,7 @@ public class GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<Glo
         {
             ValidationException => StatusCodes.Status400BadRequest,
             NotFoundException => StatusCodes.Status404NotFound,
+            NoAvailableSeatsException => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status500InternalServerError
         };
 
@@ -89,6 +90,7 @@ public class GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<Glo
         {
             ValidationException => ex.Message,
             NotFoundException => ex.Message,
+            NoAvailableSeatsException => ex.Message,
             _ => ErrorMessages.InternalServerError
         };
 }

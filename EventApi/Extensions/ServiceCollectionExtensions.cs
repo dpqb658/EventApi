@@ -1,5 +1,4 @@
 using EventApi.Constants;
-using EventApi.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
 

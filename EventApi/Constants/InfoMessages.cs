@@ -23,5 +23,10 @@ public static class InfoMessages
     /// <summary>
     /// Сообщение об успешном подтверждении бронирования.
     /// </summary>
-    public const string BookingConfirmed = "Бронь «{BookingId}» подтверждена.";
+    public const string BookingConfirmed = "Бронь «{Id}» подтверждена.";
+
+    /// <summary>
+    /// Сообщение об отклонении бронирования.
+    /// </summary>
+    public const string BookingReject = "Бронь «{Id}» отклонена.";
 }

@@ -23,11 +23,20 @@ public static class ErrorMessages
     /// <summary>
     /// Сообщение об ошибке при обработке записи бронирования.
     /// </summary>
-    public const string ProcessBookingError = "Ошибка обработки записи бронирования «{BookingId}».";
+    public const string ProcessBookingError = "Ошибка обработки записи бронирования «{Id}».";
 
     /// <summary>
     /// Сообщение об непредвиденной ошибке.
     /// </summary>
     public const string InternalServerError = "Произошла непредвиденная ошибка.";
 
+    /// <summary>
+    /// Сообщение об отсутствии свободных мест на мероприятии.
+    /// </summary>
+    public const string NoAvailableSeatsError = "No available seats for this event";
+
+    /// <summary>
+    /// Сообщение об ошибке при отклонении бронирования.
+    /// </summary>
+    public const string BookingRejectError = "Не удалось отклонить бронирование «{Id}».";
 }

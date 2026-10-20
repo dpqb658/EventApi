@@ -1,3 +1,6 @@
+using EventApi.Constants;
+using System.ComponentModel.DataAnnotations;
+
 namespace EventApi.DTOs;
 
 /// <summary>
@@ -5,4 +8,10 @@ namespace EventApi.DTOs;
 /// </summary>
 public class CreateEventRequest : EventRequestBase
 {
+    /// <summary>
+    /// Общее количество мест.
+    /// </summary>
+    [Required(ErrorMessage = ValidationMessages.TotalSeatsRequired)]
+    [Range(1, int.MaxValue, ErrorMessage = ValidationMessages.TotalSeatsMin)]
+    public int? TotalSeats { get; set; }
 }
