@@ -304,6 +304,8 @@ POST /bookings/cb1a45a0-d889-41cb-8115-8a98b74aec68
 
 Фоновый сервис периодически проверяет очередь на наличие бронирований со статусом `Pending`.
 Каждая запись обрабатывается 2 секунды, после обработки бронь переводится в статус `Confirmed` или `Rejected`, а `ProcessedAt` заполняется текущей датой и временем.
+Обработка записей выполняется через `Task.WhenAll`, а `SemaphoreSlim` ограничивает число одновременно выполняемых операций значением `Math.Max(1, Environment.ProcessorCount / 2)`.
+При создании бронирования глобальный lock не используется. Метод `Event.TryReserveSeats()` атомарно уменьшает число свободных мест, а `Event.ReleaseSeats()` увеличивает при ошибке или отмене.
 
 ## Сценарий использования
 
@@ -311,6 +313,27 @@ POST /bookings/cb1a45a0-d889-41cb-8115-8a98b74aec68
 2. Создаём бронь этому мероприятию через `POST /events/{id}/book`.
 3. Получаем ответ, что бронь добавлена в очередь обработки со статусом `Pending`.
 4. Проверяем статус через пару секунд `GET /bookings/{bookingId}` статус уже будет `Confirmed`, если есть свободные места, или `Rejected`, если мест нет, а `ProcessedAt` заполнен.
+
+### Проверка овербукинга
+
+1. Создаём мероприятие через `POST /events` на 5 мест.
+2. Меняем `EVENT_ID` в примере запроса на `Id` полученный при создании.
+3. Создаём брони через curl & xargs.
+4. Получаем ответ, что 5 броней подтверждено, а остальные 15 отклонены с кодом ошибки `409 No available seats` и `AvailableSeats` равен `0`.
+
+```bash
+BASE_URL="https://localhost:7128"
+EVENT_ID="9eb37363-3a96-4a87-9388-d0c819c4b4af"
+
+export BASE_URL EVENT_ID
+
+seq 1 20 | xargs -P 20 -I {} sh -c '
+  code=$(curl -ksS -o "/tmp/booking-{}.json" -w "%{http_code}" \
+    -X POST "$BASE_URL/events/$EVENT_ID/book" \
+    -H "Content-Type: application/json")
+  echo "$code"
+' | sort | uniq -c
+```
 
 ## Обработка ошибок
 
