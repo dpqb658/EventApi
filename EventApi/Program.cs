@@ -1,6 +1,7 @@
 using EventApi.Background;
 using EventApi.Extensions;
 using EventApi.Middleware;
+using EventApi.Repositories;
 using EventApi.Services;
 using System.Reflection;
 
@@ -16,11 +17,16 @@ builder.Services.AddSwaggerGen(options =>
     // Путь к XML-файлу с документацией
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath)) options.IncludeXmlComments(xmlPath);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
 });
 
 // Dependency Injection
+builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
 builder.Services.AddSingleton<IEventService, EventService>();
+builder.Services.AddSingleton<IBookingStore, InMemoryBookingStore>();
 builder.Services.AddSingleton<IBookingService, BookingService>();
 builder.Services.AddHostedService<BookingProcessingService>();
 

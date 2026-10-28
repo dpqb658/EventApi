@@ -1,33 +1,40 @@
 using EventApi.Constants;
 using EventApi.Exceptions;
 using EventApi.Models;
+using EventApi.Repositories;
 
 namespace EventApi.Services;
 
 /// <summary>
 /// Сервис для управления бронированиями.
 /// </summary>
-public class BookingService(IEventService eventService) : IBookingService
+public class BookingService(IEventService eventService, IBookingStore? bookingStore = null) : IBookingService
 {
     private readonly IEventService _eventService = eventService;
-    private readonly List<Booking> _bookings = [];
-    private readonly Lock _lock = new();
+    private readonly IBookingStore _bookingStore = bookingStore ?? new InMemoryBookingStore();
 
     /// <inheritdoc/>
     public Task<Booking> CreateBookingAsync(Guid eventId, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
 
-        _eventService.GetById(eventId);
-
-        var booking = new Booking { EventId = eventId };
-
-        lock (_lock)
+        var eventItem = _eventService.GetById(eventId);
+        if (!eventItem.TryReserveSeats())
         {
-            _bookings.Add(booking);
+            throw new NoAvailableSeatsException();
         }
 
-        return Task.FromResult(booking);
+        try
+        {
+            var booking = new Booking { EventId = eventId };
+            _bookingStore.Add(booking);
+            return Task.FromResult(booking);
+        }
+        catch
+        {
+            eventItem.ReleaseSeats();
+            throw;
+        }
     }
 
     /// <inheritdoc/>
@@ -35,37 +42,14 @@ public class BookingService(IEventService eventService) : IBookingService
     {
         ct.ThrowIfCancellationRequested();
 
-        lock (_lock)
-        {
-            var booking = _bookings.FirstOrDefault(x => x.Id == bookingId);
+        var booking = _bookingStore.GetById(bookingId);
 
-            return Task.FromResult(booking is null
-                ? throw new NotFoundException(string.Format(ErrorMessages.BookingNotFound, bookingId))
-                : booking
-            );
-        }
+        return Task.FromResult(booking is null
+            ? throw new NotFoundException(string.Format(ErrorMessages.BookingNotFound, bookingId))
+            : booking
+        );
     }
 
     /// <inheritdoc/>
-    public void ChangeStatusBooking(Booking booking, BookingStatus newStatus, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-
-        lock (_lock)
-        {
-            booking.ChangeStatus(newStatus);
-        }
-    }
-
-    /// <inheritdoc/>
-    public IReadOnlyCollection<Booking> GetPendingBookings()
-    {
-        lock (_lock)
-        {
-            return _bookings
-                .Where(x => x.Status == BookingStatus.Pending)
-                .ToList()
-                .AsReadOnly();
-        }
-    }
+    public IReadOnlyCollection<Booking> GetPendingBookings() => _bookingStore.GetPending();
 }

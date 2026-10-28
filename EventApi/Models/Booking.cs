@@ -5,6 +5,8 @@ namespace EventApi.Models;
 /// </summary>
 public class Booking
 {
+    private readonly Lock _lock = new();
+
     /// <summary>
     /// Уникальный идентификатор.
     /// </summary>
@@ -36,7 +38,20 @@ public class Booking
     /// <param name="newStatus">Новый статус бронирования.</param>
     public void ChangeStatus(BookingStatus newStatus)
     {
-        Status = newStatus;
-        ProcessedAt = DateTime.UtcNow;
+        lock (_lock)
+        {
+            Status = newStatus;
+            ProcessedAt = DateTime.UtcNow;
+        }
     }
+
+    /// <summary>
+    /// Подтверждает бронь.
+    /// </summary>
+    public void Confirm() => ChangeStatus(BookingStatus.Confirmed);
+
+    /// <summary>
+    /// Отклоняет бронь.
+    /// </summary>
+    public void Reject() => ChangeStatus(BookingStatus.Rejected);
 }
