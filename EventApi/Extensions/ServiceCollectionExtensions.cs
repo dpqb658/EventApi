@@ -1,6 +1,6 @@
 using EventApi.Constants;
 using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.DataAnnotations;
+using System.Net.Mime;
 
 namespace EventApi.Extensions;
 
@@ -12,7 +12,7 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Возвращает единообразный ответ при ошибках валидации.
     /// </summary>
-    /// <param name="services"></param>
+    /// <param name="services">Коллекция сервисов приложения.</param>
     public static IServiceCollection AddValidationErrorHandling(this IServiceCollection services)
     {
         services.Configure<ApiBehaviorOptions>(options =>
@@ -27,12 +27,16 @@ public static class ServiceCollectionExtensions
 
                 var error = new ProblemDetails
                 {
-                    Type = nameof(ValidationException),
+                    Type = ProblemDetailsTypes.Validation,
+                    Title = ProblemDetailsTitles.Validation,
                     Status = StatusCodes.Status400BadRequest,
                     Detail = string.Join(" ", messages)
                 };
 
-                return new BadRequestObjectResult(error);
+                return new BadRequestObjectResult(error)
+                {
+                    ContentTypes = { MediaTypeNames.Application.ProblemJson }
+                };
             };
         });
 
