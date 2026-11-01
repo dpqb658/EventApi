@@ -1,25 +1,46 @@
 using EventApi.Constants;
+using EventApi.DataAccess;
 using EventApi.Exceptions;
 using EventApi.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel.DataAnnotations;
 using Xunit;
 
 namespace EventApi.Tests;
 
-public class EventServiceTests
+public class EventServiceTests : IDisposable
 {
     private static readonly DateTime BaseDate = DateTime.UtcNow;
+    private readonly ServiceProvider _serviceProvider;
+    private readonly IServiceScope _scope;
+    private readonly IEventService _service;
 
-    private static EventService CreateService() => new();
+    public EventServiceTests()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var services = new ServiceCollection();
+        services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(dbName));
+        services.AddScoped<IEventService, EventService>();
+        _serviceProvider = services.BuildServiceProvider();
+        _scope = _serviceProvider.CreateScope();
+        _service = _scope.ServiceProvider.GetRequiredService<IEventService>();
+    }
+
+    public void Dispose()
+    {
+        _scope.Dispose();
+        _serviceProvider.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     /// <summary>
     /// Проверяет создание мероприятия.
     /// </summary>
     [Fact]
-    public void Create_ShouldCreateEvent()
+    public async Task Create_ShouldCreateEvent()
     {
-        var service = CreateService();
-        var result = service.Create(
+        var result = await _service.CreateAsync(
             "Заголовок",
             "Описание",
             BaseDate,
@@ -38,24 +59,23 @@ public class EventServiceTests
     /// Проверяет получение всех мероприятий без фильтров.
     /// </summary>
     [Fact]
-    public void GetEventList_ShouldReturnAllEvents_WhenNoFiltersAreSpecified()
+    public async Task GetEventList_ShouldReturnAllEvents_WhenNoFiltersAreSpecified()
     {
-        var service = CreateService();
-        service.Create(
+        await _service.CreateAsync(
             "Заголовок 1",
             null,
             BaseDate,
             BaseDate.AddDays(1),
             10
         );
-        service.Create(
+        await _service.CreateAsync(
             "Заголовок 2",
             null,
             BaseDate.AddDays(2),
             BaseDate.AddDays(3),
             10
         );
-        var result = service.GetEventList(null, null, null);
+        var result = await _service.GetEventListAsync(null, null, null);
 
         Assert.Equal(2, result.TotalCount);
         Assert.Equal(2, result.Items.Count);
@@ -65,17 +85,16 @@ public class EventServiceTests
     /// Проверяет получение мероприятия по Id.
     /// </summary>
     [Fact]
-    public void GetById_ShouldReturnExistingEvent()
+    public async Task GetById_ShouldReturnExistingEvent()
     {
-        var service = CreateService();
-        var created = service.Create(
+        var created = await _service.CreateAsync(
             "Заголовок",
             null,
             BaseDate,
             BaseDate.AddHours(1),
             10
         );
-        var result = service.GetById(created.Id);
+        var result = await _service.GetByIdAsync(created.Id);
 
         Assert.Equal(created.Id, result.Id);
         Assert.Equal("Заголовок", result.Title);
@@ -85,28 +104,25 @@ public class EventServiceTests
     /// Проверяет, что есть ошибка, если мероприятие не найдено по Id.
     /// </summary>
     [Fact]
-    public void GetById_ShouldThrowNotFoundException_WhenEventDoesNotExist()
+    public async Task GetById_ShouldThrowNotFoundException_WhenEventDoesNotExist()
     {
-        var service = CreateService();
-
-        Assert.Throws<NotFoundException>(() => service.GetById(Guid.NewGuid()));
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.GetByIdAsync(Guid.NewGuid()));
     }
 
     /// <summary>
     /// Проверяет обновление мероприятия.
     /// </summary>
     [Fact]
-    public void Update_ShouldUpdateExistingEvent()
+    public async Task Update_ShouldUpdateExistingEvent()
     {
-        var service = CreateService();
-        var created = service.Create(
+        var created = await _service.CreateAsync(
             "Заголовок 1",
             null,
             BaseDate,
             BaseDate.AddHours(1),
             10
         );
-        var result = service.Update(
+        var result = await _service.UpdateAsync(
             created.Id,
             "Заголовок 2",
             "Описание 2",
@@ -125,12 +141,10 @@ public class EventServiceTests
     /// Проверяет, что есть ошибка при обновлении, если мероприятие не найдено по Id.
     /// </summary>
     [Fact]
-    public void Update_ShouldThrowNotFoundException_WhenEventDoesNotExist()
+    public async Task Update_ShouldThrowNotFoundException_WhenEventDoesNotExist()
     {
-        var service = CreateService();
-
-        Assert.Throws<NotFoundException>(() =>
-            service.Update(
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _service.UpdateAsync(
                 Guid.NewGuid(),
                 "Заголовок",
                 null,
@@ -144,17 +158,15 @@ public class EventServiceTests
     /// Проверяет, что есть ошибка при создании мероприятия с некорректными датами.
     /// </summary>
     [Fact]
-    public void Create_ShouldThrowValidationException_WhenDatesAreInvalid()
+    public async Task Create_ShouldThrowValidationException_WhenDatesAreInvalid()
     {
-        var service = CreateService();
-
-        var exception = Assert.Throws<ValidationException>(() =>
-            service.Create(
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            _service.CreateAsync(
                 "Заголовок",
                 null,
                 BaseDate.AddHours(2),
                 BaseDate,
-            10
+                10
             )
         );
 
@@ -165,12 +177,10 @@ public class EventServiceTests
     /// Проверяет, что есть ошибка валидации, если общее количество мест меньше 1.
     /// </summary>
     [Fact]
-    public void Create_ShouldThrowValidationException_WhenTotalSeatsAreInvalid()
+    public async Task Create_ShouldThrowValidationException_WhenTotalSeatsAreInvalid()
     {
-        var service = CreateService();
-
-        var exception = Assert.Throws<ValidationException>(() =>
-            service.Create(
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            _service.CreateAsync(
                 "Заголовок",
                 null,
                 BaseDate,
@@ -186,10 +196,9 @@ public class EventServiceTests
     /// Проверяет, что есть ошибка при обновлении мероприятия с некорректными датами.
     /// </summary>
     [Fact]
-    public void Update_ShouldThrowValidationException_WhenDatesAreInvalid()
+    public async Task Update_ShouldThrowValidationException_WhenDatesAreInvalid()
     {
-        var service = CreateService();
-        var created = service.Create(
+        var created = await _service.CreateAsync(
             "Заголовок",
             null,
             BaseDate,
@@ -197,8 +206,8 @@ public class EventServiceTests
             10
         );
 
-        var exception = Assert.Throws<ValidationException>(() =>
-            service.Update(
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            _service.UpdateAsync(
                 created.Id,
                 "Заголовок",
                 null,
@@ -214,10 +223,9 @@ public class EventServiceTests
     /// Проверяет удаление существующего мероприятия.
     /// </summary>
     [Fact]
-    public void Delete_ShouldRemoveExistingEvent()
+    public async Task Delete_ShouldRemoveExistingEvent()
     {
-        var service = CreateService();
-        var created = service.Create(
+        var created = await _service.CreateAsync(
             "Заголовок",
             null,
             BaseDate,
@@ -225,32 +233,29 @@ public class EventServiceTests
             10
         );
 
-        service.Delete(created.Id);
+        await _service.DeleteAsync(created.Id);
 
-        Assert.Throws<NotFoundException>(() => service.GetById(created.Id));
-        Assert.Empty(service.GetEventList(null, null, null).Items);
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.GetByIdAsync(created.Id));
+        Assert.Empty((await _service.GetEventListAsync(null, null, null)).Items);
     }
 
     /// <summary>
     /// Проверяет, что есть ошибка при удалении, если мероприятие не найдено по Id.
     /// </summary>
     [Fact]
-    public void Delete_ShouldThrowNotFoundException_WhenEventDoesNotExist()
+    public async Task Delete_ShouldThrowNotFoundException_WhenEventDoesNotExist()
     {
-        var service = CreateService();
-
-        Assert.Throws<NotFoundException>(() => service.Delete(Guid.NewGuid()));
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.DeleteAsync(Guid.NewGuid()));
     }
 
     /// <summary>
     /// Проверяет, что есть ошибка валидации, если номер страницы превышает максимальное значение.
     /// </summary>
     [Fact]
-    public void GetEventList_ShouldThrowValidationException_WhenPageIsTooLarge()
+    public async Task GetEventList_ShouldThrowValidationException_WhenPageIsTooLarge()
     {
-        var service = CreateService();
-        var exception = Assert.Throws<ValidationException>(() =>
-            service.GetEventList(
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            _service.GetEventListAsync(
                 null,
                 null,
                 null,
@@ -266,31 +271,30 @@ public class EventServiceTests
     /// Проверяет фильтрацию по заголовку без учета регистра.
     /// </summary>
     [Fact]
-    public void GetEventList_ShouldFilterByTitleCaseInsensitively()
+    public async Task GetEventList_ShouldFilterByTitleCaseInsensitively()
     {
-        var service = CreateService();
-        service.Create(
+        await _service.CreateAsync(
             "Тестовый заголовок 1",
             null,
             BaseDate,
             BaseDate.AddDays(1),
             10
         );
-        service.Create(
+        await _service.CreateAsync(
             "Тестовый заголовок 2",
             null,
             BaseDate,
             BaseDate.AddDays(2),
             10
         );
-        service.Create(
+        await _service.CreateAsync(
             "Заголовок 3",
             null,
             BaseDate,
             BaseDate.AddDays(3),
             10
         );
-        var result = service.GetEventList(
+        var result = await _service.GetEventListAsync(
             "ТЕСТОВЫЙ ЗАГОЛОВОК",
             null,
             null
@@ -304,89 +308,85 @@ public class EventServiceTests
     /// Проверяет фильтрацию по дате начала.
     /// </summary>
     [Fact]
-    public void GetEventList_ShouldFilterByFromDate()
+    public async Task GetEventList_ShouldFilterByFromDate()
     {
-        var service = CreateService();
-        service.Create(
+        await _service.CreateAsync(
             "Тестовый заголовок 1",
             null,
             BaseDate,
             BaseDate.AddDays(1),
             10
         );
-        service.Create(
-             "Тестовый заголовок 2",
-             null,
-             BaseDate.AddDays(1),
-             BaseDate.AddDays(2),
-            10
-        );
-        service.Create(
-            "Заголовок 3",
-            null,
-            BaseDate.AddDays(2),
-            BaseDate.AddDays(3),
-            10
-        );
-        var result = service.GetEventList(
-            null,
-            BaseDate.AddDays(1),
-            null
-        );
-
-        Assert.Equal(2, result.TotalCount);
-        Assert.DoesNotContain(result.Items, x => x.Title == "Тестовый заголовок 1");
-    }
-
-    /// <summary>
-    /// Проверяет фильтрацию по дате завершения.
-    /// </summary>
-    [Fact]
-    public void GetEventList_ShouldFilterByToDate()
-    {
-        var service = CreateService();
-        service.Create(
-            "Тестовый заголовок 1",
-            null,
-            BaseDate,
-            BaseDate.AddDays(1),
-            10
-        );
-        service.Create(
+        await _service.CreateAsync(
             "Тестовый заголовок 2",
             null,
             BaseDate.AddDays(1),
             BaseDate.AddDays(2),
             10
         );
-        service.Create(
+        await _service.CreateAsync(
             "Заголовок 3",
             null,
             BaseDate.AddDays(2),
             BaseDate.AddDays(3),
             10
         );
-        var result = service.GetEventList(
+        var result = await _service.GetEventListAsync(
+            null,
+            BaseDate.AddDays(1),
+            null
+        );
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.DoesNotContain(result.Items, e => e.Title == "Тестовый заголовок 1");
+    }
+
+    /// <summary>
+    /// Проверяет фильтрацию по дате завершения.
+    /// </summary>
+    [Fact]
+    public async Task GetEventList_ShouldFilterByToDate()
+    {
+        await _service.CreateAsync(
+            "Тестовый заголовок 1",
+            null,
+            BaseDate,
+            BaseDate.AddDays(1),
+            10
+        );
+        await _service.CreateAsync(
+            "Тестовый заголовок 2",
+            null,
+            BaseDate.AddDays(1),
+            BaseDate.AddDays(2),
+            10
+        );
+        await _service.CreateAsync(
+            "Заголовок 3",
+            null,
+            BaseDate.AddDays(2),
+            BaseDate.AddDays(3),
+            10
+        );
+        var result = await _service.GetEventListAsync(
             null,
             null,
             BaseDate.AddDays(2)
         );
 
         Assert.Equal(2, result.TotalCount);
-        Assert.DoesNotContain(result.Items, x => x.Title == "Заголовок 3");
+        Assert.DoesNotContain(result.Items, e => e.Title == "Заголовок 3");
     }
 
     /// <summary>
     /// Проверяет пагинацию результатов.
     /// </summary>
     [Fact]
-    public void GetEventList_ShouldPaginate()
+    public async Task GetEventList_ShouldPaginate()
     {
-        var service = CreateService();
-
         for (var i = 1; i <= 25; i++)
         {
-            service.Create(
+            await _service.CreateAsync(
                 $"Заголовок {i}",
                 null,
                 BaseDate.AddDays(i),
@@ -395,7 +395,7 @@ public class EventServiceTests
             );
         }
 
-        var result = service.GetEventList(
+        var result = await _service.GetEventListAsync(
             null,
             null,
             null,
@@ -415,46 +415,44 @@ public class EventServiceTests
     /// Проверяет совместное применение всех фильтров.
     /// </summary>
     [Fact]
-    public void GetEventList_ShouldCombineAllFilters()
+    public async Task GetEventList_ShouldCombineAllFilters()
     {
-        var service = CreateService();
-
-        service.Create(
+        await _service.CreateAsync(
             "Тестовый заголовок 1",
             null,
             BaseDate.AddDays(1),
             BaseDate.AddDays(1).AddHours(1),
             10
         );
-        service.Create(
+        await _service.CreateAsync(
             "Тестовый заголовок 2",
             null,
             BaseDate.AddDays(2),
             BaseDate.AddDays(2).AddHours(2),
             10
         );
-        service.Create(
+        await _service.CreateAsync(
             "Тестовый заголовок 3",
             null,
             BaseDate.AddDays(3),
             BaseDate.AddDays(3).AddHours(3),
             10
         );
-        service.Create(
+        await _service.CreateAsync(
             "Тестовый заголовок 4",
             null,
             BaseDate.AddDays(-2),
             BaseDate.AddDays(-2).AddHours(2),
             10
         );
-        service.Create(
+        await _service.CreateAsync(
             "Заголовок 4",
             null,
             BaseDate.AddDays(-1),
             BaseDate.AddDays(-1).AddHours(1),
             10
         );
-        var result = service.GetEventList(
+        var result = await _service.GetEventListAsync(
             "Тестовый заголовок",
             BaseDate,
             BaseDate.AddDays(2).AddHours(2),
@@ -463,6 +461,6 @@ public class EventServiceTests
         );
 
         Assert.Equal(2, result.TotalCount);
-        Assert.Equal(["Тестовый заголовок 1", "Тестовый заголовок 2"], result.Items.Select(x => x.Title));
+        Assert.Equal(["Тестовый заголовок 1", "Тестовый заголовок 2"], result.Items.Select(e => e.Title));
     }
 }

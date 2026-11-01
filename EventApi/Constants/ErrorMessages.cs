@@ -39,4 +39,9 @@ public static class ErrorMessages
     /// Сообщение об ошибке при отклонении бронирования.
     /// </summary>
     public const string BookingRejectError = "Не удалось отклонить бронирование «{Id}».";
+
+    /// <summary>
+    /// Сообщение об ошибке при сохранении бронирования.
+    /// </summary>
+    public const string BookingSaveError = "Не удалось сохранить бронирование для мероприятия «{0}».";
 }

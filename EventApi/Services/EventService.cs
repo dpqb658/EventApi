@@ -1,8 +1,9 @@
 using EventApi.Constants;
+using EventApi.DataAccess;
 using EventApi.DTOs;
 using EventApi.Exceptions;
 using EventApi.Models;
-using EventApi.Repositories;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 namespace EventApi.Services;
@@ -10,21 +11,23 @@ namespace EventApi.Services;
 /// <summary>
 /// Сервис для управления мероприятиями.
 /// </summary>
-public class EventService(IEventStore? eventStore = null) : IEventService
+public class EventService(AppDbContext context) : IEventService
 {
-    private readonly IEventStore _eventStore = eventStore ?? new InMemoryEventStore();
+    private readonly AppDbContext _context = context;
 
     /// <inheritdoc/>
-    public Event GetById(Guid id)
+    public async Task<Event> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var eventItem = _eventStore.GetById(id);
+        ct.ThrowIfCancellationRequested();
+
+        var eventItem = await _context.Events.FirstOrDefaultAsync(e => e.Id == id, ct);
         return eventItem is null
             ? throw new NotFoundException(string.Format(ErrorMessages.EventNotFound, id))
             : eventItem;
     }
 
     /// <inheritdoc/>
-    public Event Create(string title, string? description, DateTime startAt, DateTime endAt, int totalSeats)
+    public async Task<Event> CreateAsync(string title, string? description, DateTime startAt, DateTime endAt, int totalSeats, CancellationToken ct = default)
     {
         var eventItem = Event.Create(
             title,
@@ -34,63 +37,65 @@ public class EventService(IEventStore? eventStore = null) : IEventService
             totalSeats
         );
 
-        _eventStore.Add(eventItem);
+        await _context.Events.AddAsync(eventItem, ct);
+        await _context.SaveChangesAsync(ct);
         return eventItem;
     }
 
     /// <inheritdoc/>
-    public Event Update(Guid id, string title, string? description, DateTime startAt, DateTime endAt)
+    public async Task<Event> UpdateAsync(Guid id, string title, string? description, DateTime startAt, DateTime endAt, CancellationToken ct = default)
     {
         ValidateDates(startAt, endAt);
 
-        var eventItem = GetById(id);
+        var eventItem = await GetByIdAsync(id, ct);
         eventItem.Title = title;
         eventItem.Description = description;
         eventItem.StartAt = startAt;
         eventItem.EndAt = endAt;
 
+        await _context.SaveChangesAsync(ct);
         return eventItem;
     }
 
     /// <inheritdoc/>
-    public void Delete(Guid id)
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        if (!_eventStore.Delete(id))
-        {
-            throw new NotFoundException(string.Format(ErrorMessages.EventNotFound, id));
-        }
+        var eventItem = await GetByIdAsync(id, ct);
+
+        _context.Events.Remove(eventItem);
+        await _context.SaveChangesAsync(ct);
     }
 
     /// <inheritdoc/>
-    public PaginatedResult<Event> GetEventList(string? title, DateTime? from, DateTime? to, int page = 1, int pageSize = 10)
+    public async Task<PaginatedResult<Event>> GetEventListAsync(string? title, DateTime? from, DateTime? to, int page = 1, int pageSize = 10, CancellationToken ct = default)
     {
         ValidatePage(page, pageSize);
 
-        IEnumerable<Event> query = _eventStore.GetAll();
+        IQueryable<Event> query = _context.Events;
 
         if (!string.IsNullOrWhiteSpace(title))
         {
-            query = query.Where(x => x.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(e => e.Title.ToLower().Contains(title.ToLower()));
         }
 
         if (from.HasValue)
         {
-            query = query.Where(x => x.StartAt >= from.Value);
+            query = query.Where(e => e.StartAt >= from.Value);
         }
 
         if (to.HasValue)
         {
-            query = query.Where(x => x.EndAt <= to.Value);
+            query = query.Where(e => e.EndAt <= to.Value);
         }
 
-        var totalCount = query.Count();
+        var totalCount = await query.CountAsync(ct);
 
-        var items = query
-            .OrderBy(x => x.StartAt)
-            .ThenBy(x => x.Id)
+        var items = await query
+            .OrderBy(e => e.StartAt)
+            .ThenBy(e => e.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .ToList();
+            .ToListAsync(ct);
 
         int totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
 

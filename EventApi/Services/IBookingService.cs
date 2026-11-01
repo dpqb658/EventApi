@@ -8,7 +8,7 @@ namespace EventApi.Services;
 public interface IBookingService
 {
     /// <summary>
-    /// Метод создаёт бронь для мероприятия.
+    /// Метод создаёт бронь для мероприятия и резервирует место.
     /// </summary>
     /// <param name="eventId">Уникальный идентификатор мероприятия.</param>
     /// <param name="ct">Токен отмены.</param>
@@ -20,9 +20,4 @@ public interface IBookingService
     /// <param name="bookingId">Уникальный идентификатор.</param>
     /// <param name="ct">Токен отмены.</param>
     Task<Booking> GetBookingByIdAsync(Guid bookingId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Метод возвращает коллекцию бронирований, ожидающих обработки.
-    /// </summary>
-    IReadOnlyCollection<Booking> GetPendingBookings();
 }
