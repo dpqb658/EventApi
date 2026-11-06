@@ -21,14 +21,15 @@ public class EventsController(IEventService eventService) : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(PaginatedResult<EventResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<PaginatedResult<EventResponse>> GetAll([FromQuery] EventFilterParameters parameters)
+    public async Task<ActionResult<PaginatedResult<EventResponse>>> GetAll([FromQuery] EventFilterParameters parameters, CancellationToken ct)
     {
-        var events = _eventService.GetEventList(
+        var events = await _eventService.GetEventListAsync(
             parameters.Title,
             parameters.From,
             parameters.To,
             parameters.Page,
-            parameters.PageSize);
+            parameters.PageSize,
+            ct);
 
         return Ok(new PaginatedResult<EventResponse>
         {
@@ -46,9 +47,9 @@ public class EventsController(IEventService eventService) : ControllerBase
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<EventResponse> GetById(Guid id)
+    public async Task<ActionResult<EventResponse>> GetById(Guid id, CancellationToken ct)
     {
-        var eventItem = _eventService.GetById(id);
+        var eventItem = await _eventService.GetByIdAsync(id, ct);
 
         return Ok(MapToResponse(eventItem));
     }
@@ -59,14 +60,15 @@ public class EventsController(IEventService eventService) : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(EventResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public ActionResult<EventResponse> Create([FromBody] CreateEventRequest request)
+    public async Task<ActionResult<EventResponse>> Create([FromBody] CreateEventRequest request, CancellationToken ct)
     {
-        var eventItem = _eventService.Create(
+        var eventItem = await _eventService.CreateAsync(
             request.Title!,
             request.Description,
             request.StartAt!.Value,
             request.EndAt!.Value,
-            request.TotalSeats!.Value
+            request.TotalSeats!.Value,
+            ct
         );
         var response = MapToResponse(eventItem);
 
@@ -84,14 +86,15 @@ public class EventsController(IEventService eventService) : ControllerBase
     [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public ActionResult<EventResponse> Update(Guid id, [FromBody] UpdateEventRequest request)
+    public async Task<ActionResult<EventResponse>> Update(Guid id, [FromBody] UpdateEventRequest request, CancellationToken ct)
     {
-        var eventItem = _eventService.Update(
+        var eventItem = await _eventService.UpdateAsync(
             id,
             request.Title!,
             request.Description,
             request.StartAt!.Value,
-            request.EndAt!.Value
+            request.EndAt!.Value,
+            ct
         );
         return Ok(MapToResponse(eventItem));
     }
@@ -102,9 +105,9 @@ public class EventsController(IEventService eventService) : ControllerBase
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult Delete(Guid id)
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        _eventService.Delete(id);
+        await _eventService.DeleteAsync(id, ct);
         return NoContent();
     }
 

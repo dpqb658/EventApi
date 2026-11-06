@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.ComponentModel.DataAnnotations;
-using System.Net;
+using System.Net.Mime;
 using System.Text.Json;
 using Xunit;
 
@@ -26,8 +26,10 @@ public class GlobalExceptionHandlingMiddlewareTests
         await middleware.InvokeAsync(context);
 
         var response = await ReadResponse(context, GetOptions());
-        Assert.Equal(nameof(ValidationException), response.Type);
+        Assert.Equal(ProblemDetailsTypes.Validation, response.Type);
+        Assert.Equal(ProblemDetailsTitles.Validation, response.Title);
         Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        Assert.Equal(MediaTypeNames.Application.ProblemJson, context.Response.ContentType);
         Assert.Equal(ValidationMessages.TitleRequired, response.Detail);
     }
 
@@ -44,9 +46,31 @@ public class GlobalExceptionHandlingMiddlewareTests
         await middleware.InvokeAsync(context);
 
         var response = await ReadResponse(context, GetOptions());
-        Assert.Equal(nameof(NotFoundException), response.Type);
+        Assert.Equal(ProblemDetailsTypes.NotFound, response.Type);
+        Assert.Equal(ProblemDetailsTitles.NotFound, response.Title);
         Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+        Assert.Equal(MediaTypeNames.Application.ProblemJson, context.Response.ContentType);
         Assert.Equal(ErrorMessages.EventNotFound, response.Detail);
+    }
+
+    /// <summary>
+    /// Проверяет, что при возникновении исключения, когда нет свободных мест на мероприятии,
+    /// middleware возвращает код ответа: 409, тип и сообщение исключения.
+    /// </summary>
+    [Fact]
+    public async Task Invoke_ShouldReturn409_WhenNoAvailableSeatsExceptionIsThrown()
+    {
+        var context = CreateContext();
+        var middleware = CreateMiddleware(_ => throw new NoAvailableSeatsException());
+
+        await middleware.InvokeAsync(context);
+
+        var response = await ReadResponse(context, GetOptions());
+        Assert.Equal(ProblemDetailsTypes.NoAvailableSeats, response.Type);
+        Assert.Equal(ProblemDetailsTitles.NoAvailableSeats, response.Title);
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        Assert.Equal(MediaTypeNames.Application.ProblemJson, context.Response.ContentType);
+        Assert.Equal(ErrorMessages.NoAvailableSeatsError, response.Detail);
     }
 
     /// <summary>
@@ -62,8 +86,10 @@ public class GlobalExceptionHandlingMiddlewareTests
         await middleware.InvokeAsync(context);
 
         var response = await ReadResponse(context, GetOptions());
-        Assert.Equal(HttpStatusCode.InternalServerError.ToString(), response.Type);
+        Assert.Equal(ProblemDetailsTypes.InternalServerError, response.Type);
+        Assert.Equal(ErrorMessages.InternalServerError, response.Title);
         Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        Assert.Equal(MediaTypeNames.Application.ProblemJson, context.Response.ContentType);
         Assert.Equal(ErrorMessages.InternalServerError, response.Detail);
     }
 

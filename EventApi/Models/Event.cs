@@ -11,9 +11,19 @@ public class Event
     private readonly Lock _lock = new();
 
     /// <summary>
+    /// Конструктор для EF Core.
+    /// </summary>
+    private Event() { }
+
+    /// <summary>
     /// Уникальный идентификатор.
     /// </summary>
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; private set; } = Guid.NewGuid();
+
+    /// <summary>
+    /// Брони мероприятия.
+    /// </summary>
+    public ICollection<Booking> Bookings { get; private set; } = [];
 
     /// <summary>
     /// Заголовок.

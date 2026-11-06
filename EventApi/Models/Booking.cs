@@ -8,14 +8,24 @@ public class Booking
     private readonly Lock _lock = new();
 
     /// <summary>
+    /// Конструктор для EF Core.
+    /// </summary>
+    private Booking() { }
+
+    /// <summary>
     /// Уникальный идентификатор.
     /// </summary>
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; private set; } = Guid.NewGuid();
 
     /// <summary>
     /// Идентификатор мероприятия.
     /// </summary>
-    public Guid EventId { get; init; }
+    public Guid EventId { get; private set; }
+
+    /// <summary>
+    /// Мероприятие.
+    /// </summary>
+    public Event Event { get; private set; } = null!;
 
     /// <summary>
     /// Текущий статус брони.
@@ -25,12 +35,21 @@ public class Booking
     /// <summary>
     /// Дата и время создания брони.
     /// </summary>
-    public DateTime CreatedAt { get; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
 
     /// <summary>
     /// Дата и время обработки брони.
     /// </summary>
     public DateTime? ProcessedAt { get; private set; }
+
+    /// <summary>
+    /// Метод создаёт новую бронь для мероприятия.
+    /// </summary>
+    /// <param name="eventId">Идентификатор мероприятия.</param>
+    public static Booking Create(Guid eventId)
+    {
+        return new Booking { EventId = eventId };
+    }
 
     /// <summary>
     /// Обновляет статус бронирования и дату обработки брони.

@@ -2,7 +2,8 @@ using EventApi.Constants;
 using EventApi.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-using System.Net;
+using System.Net.Mime;
+using System.Text.Json;
 
 namespace EventApi.Middleware;
 
@@ -11,6 +12,7 @@ namespace EventApi.Middleware;
 /// </summary>
 public class GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<GlobalExceptionHandlingMiddleware> logger)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly RequestDelegate _next = next;
     private readonly ILogger<GlobalExceptionHandlingMiddleware> _logger = logger;
 
@@ -32,8 +34,7 @@ public class GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<Glo
 
     private async Task HandleException(HttpContext httpContext, Exception ex)
     {
-        var statusCode = MapStatusCode(ex);
-        var message = MapErrorMessage(ex);
+        var (statusCode, type, title, message) = MapException(ex);
 
         if (statusCode >= StatusCodes.Status500InternalServerError)
         {
@@ -60,37 +61,51 @@ public class GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<Glo
             return;
         }
 
-        httpContext.Response.Clear();
-        httpContext.Response.StatusCode = statusCode;
-        httpContext.Response.ContentType = "application/json";
-
         var error = new ProblemDetails
         {
-            Type = statusCode >= StatusCodes.Status500InternalServerError
-                ? HttpStatusCode.InternalServerError.ToString()
-                : ex.GetType().Name,
+            Type = type,
+            Title = title,
             Status = statusCode,
             Detail = message
         };
 
-        await httpContext.Response.WriteAsJsonAsync(error);
+        httpContext.Response.Clear();
+        httpContext.Response.StatusCode = statusCode;
+
+        await httpContext.Response.WriteAsJsonAsync(
+            error,
+            options: JsonOptions,
+            contentType: MediaTypeNames.Application.ProblemJson,
+            cancellationToken: httpContext.RequestAborted
+        );
     }
 
-    private static int MapStatusCode(Exception ex)
+    private static (int StatusCode, string Type, string Title, string Detail) MapException(Exception ex)
         => ex switch
         {
-            ValidationException => StatusCodes.Status400BadRequest,
-            NotFoundException => StatusCodes.Status404NotFound,
-            NoAvailableSeatsException => StatusCodes.Status409Conflict,
-            _ => StatusCodes.Status500InternalServerError
-        };
-
-    private static string MapErrorMessage(Exception ex)
-        => ex switch
-        {
-            ValidationException => ex.Message,
-            NotFoundException => ex.Message,
-            NoAvailableSeatsException => ex.Message,
-            _ => ErrorMessages.InternalServerError
+            ValidationException => (
+                StatusCodes.Status400BadRequest,
+                ProblemDetailsTypes.Validation,
+                ProblemDetailsTitles.Validation,
+                ex.Message
+            ),
+            NotFoundException => (
+                StatusCodes.Status404NotFound,
+                ProblemDetailsTypes.NotFound,
+                ProblemDetailsTitles.NotFound,
+                ex.Message
+            ),
+            NoAvailableSeatsException => (
+                StatusCodes.Status409Conflict,
+                ProblemDetailsTypes.NoAvailableSeats,
+                ProblemDetailsTitles.NoAvailableSeats,
+                ex.Message
+            ),
+            _ => (
+                StatusCodes.Status500InternalServerError,
+                ProblemDetailsTypes.InternalServerError,
+                ErrorMessages.InternalServerError,
+                ErrorMessages.InternalServerError
+            )
         };
 }

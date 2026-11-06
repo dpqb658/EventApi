@@ -12,7 +12,8 @@ public interface IEventService
     /// Метод получает мероприятие по ID.
     /// </summary>
     /// <param name="id">Уникальный идентификатор.</param>
-    Event GetById(Guid id);
+    /// <param name="ct">Токен отмены.</param>
+    Task<Event> GetByIdAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
     /// Метод создаёт новое мероприятие.
@@ -22,7 +23,8 @@ public interface IEventService
     /// <param name="startAt">Дата начала.</param>
     /// <param name="endAt">Дата завершения.</param>
     /// <param name="totalSeats">Общее количество мест.</param>
-    Event Create(string title, string? description, DateTime startAt, DateTime endAt, int totalSeats);
+    /// <param name="ct">Токен отмены.</param>
+    Task<Event> CreateAsync(string title, string? description, DateTime startAt, DateTime endAt, int totalSeats, CancellationToken ct = default);
 
     /// <summary>
     /// Метод обновляет мероприятие.
@@ -32,13 +34,15 @@ public interface IEventService
     /// <param name="description">Описание.</param>
     /// <param name="startAt">Дата начала.</param>
     /// <param name="endAt">Дата завершения.</param>
-    Event Update(Guid id, string title, string? description, DateTime startAt, DateTime endAt);
+    /// <param name="ct">Токен отмены.</param>
+    Task<Event> UpdateAsync(Guid id, string title, string? description, DateTime startAt, DateTime endAt, CancellationToken ct = default);
 
     /// <summary>
     /// Метод удаляет мероприятие.
     /// </summary>
     /// <param name="id">Уникальный идентификатор.</param>
-    void Delete(Guid id);
+    /// <param name="ct">Токен отмены.</param>
+    Task DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
     /// Метод получает список мероприятий по фильтру.
@@ -48,5 +52,6 @@ public interface IEventService
     /// <param name="to">Дата завершения.</param>
     /// <param name="page">Номер страницы.</param>
     /// <param name="pageSize">Количество элементов на странице.</param>
-    PaginatedResult<Event> GetEventList(string? title, DateTime? from, DateTime? to, int page = 1, int pageSize = 10);
+    /// <param name="ct">Токен отмены.</param>
+    Task<PaginatedResult<Event>> GetEventListAsync(string? title, DateTime? from, DateTime? to, int page = 1, int pageSize = 10, CancellationToken ct = default);
 }

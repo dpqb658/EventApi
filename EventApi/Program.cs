@@ -1,8 +1,9 @@
 using EventApi.Background;
+using EventApi.DataAccess;
 using EventApi.Extensions;
 using EventApi.Middleware;
-using EventApi.Repositories;
 using EventApi.Services;
+using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,13 +25,21 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // Dependency Injection
-builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
-builder.Services.AddSingleton<IEventService, EventService>();
-builder.Services.AddSingleton<IBookingStore, InMemoryBookingStore>();
-builder.Services.AddSingleton<IBookingService, BookingService>();
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+);
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddHostedService<BookingProcessingService>();
 
 var app = builder.Build();
+
+// Создаёт схемы базы данных при первом запуске
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.EnsureCreated();
+}
 
 // Swagger
 if (app.Environment.IsDevelopment())

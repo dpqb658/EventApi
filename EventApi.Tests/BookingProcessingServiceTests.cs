@@ -1,55 +1,124 @@
 using EventApi.Background;
+using EventApi.DataAccess;
 using EventApi.Models;
-using EventApi.Repositories;
 using EventApi.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace EventApi.Tests;
 
-public class BookingProcessingServiceTests
+public class BookingProcessingServiceTests : IDisposable
 {
-    /// <summary>
-    /// Проверяет, что сервис обработки очереди бронирований работает.
-    /// </summary>
-    [Fact]
-    public async Task ProcessPendingBooking_ShouldConfirmBooking_AndSetProcessedAt()
+    private readonly ServiceProvider _serviceProvider;
+    private readonly IServiceScope _scope;
+    private readonly IEventService _eventService;
+    private readonly IBookingService _bookingService;
+    private readonly BookingProcessingService _processingService;
+
+    public BookingProcessingServiceTests()
     {
-        var eventStore = new InMemoryEventStore();
-        var eventService = new EventService(eventStore);
-        var bookingService = new BookingService(eventService);
-        var eventItem = eventService.Create(
+        var dbName = Guid.NewGuid().ToString();
+        var services = new ServiceCollection();
+        services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(dbName));
+        services.AddScoped<IEventService, EventService>();
+        services.AddScoped<IBookingService, BookingService>();
+        _serviceProvider = services.BuildServiceProvider();
+        _scope = _serviceProvider.CreateScope();
+        _eventService = _scope.ServiceProvider.GetRequiredService<IEventService>();
+        _bookingService = _scope.ServiceProvider.GetRequiredService<IBookingService>();
+        _processingService = new BookingProcessingService(
+            NullLogger<BookingProcessingService>.Instance,
+            _serviceProvider.GetRequiredService<IServiceScopeFactory>()
+        );
+    }
+
+    /// <summary>
+    /// Создаёт мероприятие и одну бронь к нему.
+    /// </summary>
+    private async Task<Booking> CreatePendingBookingAsync()
+    {
+        var eventItem = await _eventService.CreateAsync(
             "Заголовок",
             null,
             DateTime.UtcNow,
             DateTime.UtcNow.AddHours(1),
             10
         );
-        var booking = await bookingService.CreateBookingAsync(eventItem.Id);
+        return await _bookingService.CreateBookingAsync(eventItem.Id);
+    }
 
-        var service = new BookingProcessingService(
-            NullLogger<BookingProcessingService>.Instance,
-            bookingService,
-            eventStore
-        );
+    /// <summary>
+    /// Проверяет, что сервис обработки очереди бронирований работает.
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingBooking_ShouldConfirmBooking_AndSetProcessedAt()
+    {
+        await CreatePendingBookingAsync();
 
-        await service.StartAsync(CancellationToken.None);
+        await _processingService.StartAsync(CancellationToken.None);
 
         try
         {
             var processed = await PollUntilAsync(
-                () => bookingService.GetBookingByIdAsync(booking.Id),
-                b => b.Status != BookingStatus.Pending, TimeSpan.FromSeconds(10)
+                GetBookingAsync,
+                b => b is not null && b.Status != BookingStatus.Pending,
+                TimeSpan.FromSeconds(10)
             );
 
             Assert.NotNull(processed);
-            Assert.Equal(BookingStatus.Confirmed, processed.Status);
+            Assert.Equal(BookingStatus.Confirmed, processed!.Status);
             Assert.NotNull(processed.ProcessedAt);
         }
         finally
         {
-            await service.StopAsync(CancellationToken.None);
+            await _processingService.StopAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// Проверяет, что бронь отклоняется, если мероприятие отсутствует при обработке.
+    /// </summary>
+    [Fact]
+    public async Task ProcessPendingBooking_ShouldRejectBooking_WhenEventIsMissing()
+    {
+        var booking = await CreatePendingBookingAsync();
+
+        using (var deleteScope = _serviceProvider.CreateScope())
+        {
+            var eventService = deleteScope.ServiceProvider.GetRequiredService<IEventService>();
+            await eventService.DeleteAsync(booking.EventId);
+        }
+
+        await _processingService.StartAsync(CancellationToken.None);
+
+        try
+        {
+            var processed = await PollUntilAsync(
+                GetBookingAsync,
+                b => b is not null && b.Status != BookingStatus.Pending,
+                TimeSpan.FromSeconds(10)
+            );
+
+            Assert.NotNull(processed);
+            Assert.Equal(BookingStatus.Rejected, processed!.Status);
+            Assert.NotNull(processed.ProcessedAt);
+        }
+        finally
+        {
+            await _processingService.StopAsync(CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Читает бронь из базы в отдельном scope.
+    /// </summary>
+    private async Task<Booking?> GetBookingAsync()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await context.Bookings.AsNoTracking().FirstOrDefaultAsync();
     }
 
     /// <summary>
@@ -78,5 +147,12 @@ public class BookingProcessingServiceTests
         }
 
         throw new TimeoutException();
+    }
+
+    public void Dispose()
+    {
+        _scope.Dispose();
+        _serviceProvider.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
