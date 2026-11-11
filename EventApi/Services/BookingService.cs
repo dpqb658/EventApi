@@ -1,19 +1,18 @@
-using System.Collections.Concurrent;
 using EventApi.Constants;
-using EventApi.DataAccess;
+using EventApi.DataAccess.Repositories;
 using EventApi.Exceptions;
 using EventApi.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace EventApi.Services;
 
 /// <summary>
 /// Сервис для управления бронированиями.
 /// </summary>
-public class BookingService(AppDbContext context) : IBookingService
+public class BookingService(IEventRepository eventRepository, IBookingRepository bookingRepository) : IBookingService
 {
     private static readonly SemaphoreSlim bookingLock = new(1, 1);
-    private readonly AppDbContext _context = context;
+    private readonly IEventRepository _eventRepository = eventRepository;
+    private readonly IBookingRepository _bookingRepository = bookingRepository;
 
     /// <inheritdoc/>
     public async Task<Booking> CreateBookingAsync(Guid eventId, CancellationToken ct = default)
@@ -23,7 +22,7 @@ public class BookingService(AppDbContext context) : IBookingService
         await bookingLock.WaitAsync(ct);
         try
         {
-            var eventItem = await _context.Events.FirstOrDefaultAsync(e => e.Id == eventId, ct)
+            var eventItem = await _eventRepository.GetByIdAsync(eventId, ct)
                 ?? throw new NotFoundException(string.Format(ErrorMessages.EventNotFound, eventId));
 
             if (!eventItem.TryReserveSeats())
@@ -34,8 +33,8 @@ public class BookingService(AppDbContext context) : IBookingService
             try
             {
                 var booking = Booking.Create(eventId);
-                await _context.Bookings.AddAsync(booking, ct);
-                await _context.SaveChangesAsync(ct);
+                await _bookingRepository.AddAsync(booking, ct);
+                await _bookingRepository.SaveChangesAsync(ct);
                 return booking;
             }
             catch (Exception ex)
@@ -55,7 +54,7 @@ public class BookingService(AppDbContext context) : IBookingService
     {
         ct.ThrowIfCancellationRequested();
 
-        var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId, ct);
+        var booking = await _bookingRepository.GetByIdAsync(bookingId, ct);
 
         return booking is null
             ? throw new NotFoundException(string.Format(ErrorMessages.BookingNotFound, bookingId))

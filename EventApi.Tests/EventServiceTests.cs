@@ -1,5 +1,6 @@
 using EventApi.Constants;
 using EventApi.DataAccess;
+using EventApi.DataAccess.Repositories;
 using EventApi.Exceptions;
 using EventApi.Services;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ public class EventServiceTests : IDisposable
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(dbName));
         services.AddScoped<IEventService, EventService>();
+        services.AddScoped<IEventRepository, EventRepository>();
         _serviceProvider = services.BuildServiceProvider();
         _scope = _serviceProvider.CreateScope();
         _service = _scope.ServiceProvider.GetRequiredService<IEventService>();
@@ -53,6 +55,8 @@ public class EventServiceTests : IDisposable
         Assert.Equal("Описание", result.Description);
         Assert.Equal(BaseDate, result.StartAt);
         Assert.Equal(BaseDate.AddHours(2), result.EndAt);
+        Assert.Equal(10, result.TotalSeats);
+        Assert.Equal(result.TotalSeats, result.AvailableSeats);
     }
 
     /// <summary>
