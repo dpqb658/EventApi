@@ -1,5 +1,6 @@
 using EventApi.Background;
 using EventApi.DataAccess;
+using EventApi.DataAccess.Repositories;
 using EventApi.Models;
 using EventApi.Services;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,8 @@ public class BookingProcessingServiceTests : IDisposable
         services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(dbName));
         services.AddScoped<IEventService, EventService>();
         services.AddScoped<IBookingService, BookingService>();
+        services.AddScoped<IEventRepository, EventRepository>();
+        services.AddScoped<IBookingRepository, BookingRepository>();
         _serviceProvider = services.BuildServiceProvider();
         _scope = _serviceProvider.CreateScope();
         _eventService = _scope.ServiceProvider.GetRequiredService<IEventService>();

@@ -1,7 +1,6 @@
 using EventApi.Constants;
-using EventApi.DataAccess;
+using EventApi.DataAccess.Repositories;
 using EventApi.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace EventApi.Background;
 
@@ -34,7 +33,13 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
         {
             try
             {
-                var pendingBookings = await GetPendingBookingIdsAsync(stoppingToken);
+                List<Guid> pendingBookings;
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var bookingRepository = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
+                    pendingBookings = await bookingRepository.GetPendingBookingIdsAsync(stoppingToken);
+                }
+
                 var processedCount = 0;
 
                 var tasks = pendingBookings.Select(async bookingId =>
@@ -73,21 +78,6 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
     }
 
     /// <summary>
-    /// Метод возвращает идентификаторы броней, ожидающих обработки.
-    /// </summary>
-    /// <param name="stoppingToken">Токен отмены.</param>
-    private async Task<List<Guid>> GetPendingBookingIdsAsync(CancellationToken stoppingToken)
-    {
-        using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        return await context.Bookings
-            .Where(b => b.Status == BookingStatus.Pending)
-            .Select(b => b.Id)
-            .ToListAsync(stoppingToken);
-    }
-
-    /// <summary>
     /// Метод обрабатывает запись бронирования и меняет статус.
     /// </summary>
     /// <param name="bookingId">Идентификатор бронирования.</param>
@@ -102,15 +92,16 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var bookingRepository = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
+                var eventRepository = scope.ServiceProvider.GetRequiredService<IEventRepository>();
 
-                var booking = await context.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId, stoppingToken);
+                var booking = await bookingRepository.GetByIdAsync(bookingId, stoppingToken);
                 if (booking is null || booking.Status != BookingStatus.Pending)
                 {
                     return;
                 }
 
-                var eventItem = await context.Events.FirstOrDefaultAsync(e => e.Id == booking.EventId, stoppingToken);
+                var eventItem = await eventRepository.GetByIdAsync(booking.EventId, stoppingToken);
                 if (eventItem is null)
                 {
                     booking.Reject();
@@ -125,7 +116,7 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
                     }
                 }
 
-                await context.SaveChangesAsync(stoppingToken);
+                await bookingRepository.SaveChangesAsync(stoppingToken);
             }
             finally
             {
@@ -152,19 +143,20 @@ public class BookingProcessingService(ILogger<BookingProcessingService> logger, 
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var bookingRepository = scope.ServiceProvider.GetRequiredService<IBookingRepository>();
+                var eventRepository = scope.ServiceProvider.GetRequiredService<IEventRepository>();
 
-                var booking = await context.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId);
+                var booking = await bookingRepository.GetByIdAsync(bookingId);
                 if (booking is null)
                 {
                     return;
                 }
                 booking.Reject();
 
-                var eventItem = await context.Events.FirstOrDefaultAsync(e => e.Id == booking.EventId);
+                var eventItem = await eventRepository.GetByIdAsync(booking.EventId);
                 eventItem?.ReleaseSeats();
 
-                await context.SaveChangesAsync();
+                await bookingRepository.SaveChangesAsync();
             }
             finally
             {

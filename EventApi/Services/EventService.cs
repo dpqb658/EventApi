@@ -1,9 +1,8 @@
 using EventApi.Constants;
-using EventApi.DataAccess;
+using EventApi.DataAccess.Repositories;
 using EventApi.DTOs;
 using EventApi.Exceptions;
 using EventApi.Models;
-using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 namespace EventApi.Services;
@@ -11,16 +10,16 @@ namespace EventApi.Services;
 /// <summary>
 /// Сервис для управления мероприятиями.
 /// </summary>
-public class EventService(AppDbContext context) : IEventService
+public class EventService(IEventRepository eventRepository) : IEventService
 {
-    private readonly AppDbContext _context = context;
+    private readonly IEventRepository _eventRepository = eventRepository;
 
     /// <inheritdoc/>
     public async Task<Event> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
 
-        var eventItem = await _context.Events.FirstOrDefaultAsync(e => e.Id == id, ct);
+        var eventItem = await _eventRepository.GetByIdAsync(id, ct);
         return eventItem is null
             ? throw new NotFoundException(string.Format(ErrorMessages.EventNotFound, id))
             : eventItem;
@@ -37,8 +36,8 @@ public class EventService(AppDbContext context) : IEventService
             totalSeats
         );
 
-        await _context.Events.AddAsync(eventItem, ct);
-        await _context.SaveChangesAsync(ct);
+        await _eventRepository.AddAsync(eventItem, ct);
+        await _eventRepository.SaveChangesAsync(ct);
         return eventItem;
     }
 
@@ -53,7 +52,7 @@ public class EventService(AppDbContext context) : IEventService
         eventItem.StartAt = startAt;
         eventItem.EndAt = endAt;
 
-        await _context.SaveChangesAsync(ct);
+        await _eventRepository.SaveChangesAsync(ct);
         return eventItem;
     }
 
@@ -62,8 +61,8 @@ public class EventService(AppDbContext context) : IEventService
     {
         var eventItem = await GetByIdAsync(id, ct);
 
-        _context.Events.Remove(eventItem);
-        await _context.SaveChangesAsync(ct);
+        await _eventRepository.DeleteAsync(eventItem, ct);
+        await _eventRepository.SaveChangesAsync(ct);
     }
 
     /// <inheritdoc/>
@@ -71,42 +70,7 @@ public class EventService(AppDbContext context) : IEventService
     {
         ValidatePage(page, pageSize);
 
-        IQueryable<Event> query = _context.Events;
-
-        if (!string.IsNullOrWhiteSpace(title))
-        {
-            query = query.Where(e => e.Title.ToLower().Contains(title.ToLower()));
-        }
-
-        if (from.HasValue)
-        {
-            query = query.Where(e => e.StartAt >= from.Value);
-        }
-
-        if (to.HasValue)
-        {
-            query = query.Where(e => e.EndAt <= to.Value);
-        }
-
-        var totalCount = await query.CountAsync(ct);
-
-        var items = await query
-            .OrderBy(e => e.StartAt)
-            .ThenBy(e => e.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(ct);
-
-        int totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
-
-        return new PaginatedResult<Event>
-        {
-            Items = items.AsReadOnly(),
-            Page = page,
-            PageSize = pageSize,
-            TotalCount = totalCount,
-            TotalPages = totalPages
-        };
+        return await _eventRepository.GetListAsync(title, from, to, page, pageSize, ct);
     }
 
     /// <summary>

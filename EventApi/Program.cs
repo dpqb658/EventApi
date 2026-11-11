@@ -1,5 +1,6 @@
 using EventApi.Background;
 using EventApi.DataAccess;
+using EventApi.DataAccess.Repositories;
 using EventApi.Extensions;
 using EventApi.Middleware;
 using EventApi.Services;
@@ -30,15 +31,17 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 );
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddHostedService<BookingProcessingService>();
 
 var app = builder.Build();
 
-// Создаёт схемы базы данных при первом запуске
+// Применяет миграции базы данных при запуске приложения
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
 }
 
 // Swagger
